@@ -1,17 +1,12 @@
 # Hermes Agent Windows
 
-This repository is based on the original [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) source code.
+Windows-native fork of
+[`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent).
 
-I adapted it so Hermes Agent can be installed and used on native Windows without requiring WSL2.
+This version is adapted for native Windows use and does not require WSL2 for
+normal CLI installation and usage.
 
-## What Changed
-
-- Native Windows installation flow
-- One-line PowerShell installer
-- Git Bash based shell compatibility for local command execution
-- Windows environment setup for Hermes runtime
-
-## Install on Windows
+## Install
 
 Open PowerShell and run:
 
@@ -19,9 +14,9 @@ Open PowerShell and run:
 irm https://raw.githubusercontent.com/pengchengxia75-arch/hermes-agent-windows/main/scripts/install.ps1 | iex
 ```
 
-## After Install
+## Use
 
-Open a new PowerShell window, then run:
+After installation, open a new PowerShell window and run:
 
 ```powershell
 hermes version
@@ -29,13 +24,21 @@ hermes setup
 hermes
 ```
 
-## Notes
+## What This Fork Focuses On
 
-- This repo is a Windows adaptation of the upstream Hermes Agent project.
-- The upstream project is here:
-  [https://github.com/NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent)
-- This version is focused on making the core CLI workflow usable on Windows without WSL2.
+- native Windows installation
+- no WSL2 requirement
+- Git Bash compatibility for command execution
+- simpler Windows setup for Hermes CLI
+
+## Upstream
+
+Original project:
+[`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent)
+
+This repository is a Windows adaptation built on top of the upstream source
+code, not a separate project from scratch.
 
 ## License
 
-This project keeps the upstream MIT license.
+This repository keeps the upstream MIT license.
