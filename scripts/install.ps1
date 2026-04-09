@@ -44,22 +44,22 @@ function Write-Banner {
 
 function Write-Info {
     param([string]$Message)
-    Write-Host "鈫?$Message" -ForegroundColor Cyan
+    Write-Host "[INFO] $Message" -ForegroundColor Cyan
 }
 
 function Write-Success {
     param([string]$Message)
-    Write-Host "鉁?$Message" -ForegroundColor Green
+    Write-Host "[OK] $Message" -ForegroundColor Green
 }
 
 function Write-Warn {
     param([string]$Message)
-    Write-Host "鈿?$Message" -ForegroundColor Yellow
+    Write-Host "[WARN] $Message" -ForegroundColor Yellow
 }
 
 function Write-Err {
     param([string]$Message)
-    Write-Host "鉁?$Message" -ForegroundColor Red
+    Write-Host "[ERROR] $Message" -ForegroundColor Red
 }
 
 # ============================================================================
@@ -841,21 +841,11 @@ function Invoke-SetupWizard {
         Write-Info "Skipping setup wizard (-SkipSetup)"
         return
     }
-    
+
     Write-Host ""
-    Write-Info "Starting setup wizard..."
+    Write-Info "Skipping automatic setup during install."
+    Write-Info "Run 'hermes setup' in a new terminal after installation."
     Write-Host ""
-    
-    Push-Location $InstallDir
-    
-    # Run hermes setup using the venv Python directly (no activation needed)
-    if (-not $NoVenv) {
-        & ".\venv\Scripts\python.exe" -m hermes_cli.main setup
-    } else {
-        python -m hermes_cli.main setup
-    }
-    
-    Pop-Location
 }
 
 function Start-GatewayIfConfigured {
