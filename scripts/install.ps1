@@ -62,6 +62,33 @@ function Write-Err {
     Write-Host "[ERROR] $Message" -ForegroundColor Red
 }
 
+function Invoke-InstallerCommandWithTimeout {
+    param(
+        [string]$FilePath,
+        [string[]]$ArgumentList,
+        [string]$Description,
+        [int]$TimeoutSeconds = 180
+    )
+
+    try {
+        $process = Start-Process -FilePath $FilePath `
+            -ArgumentList $ArgumentList `
+            -WindowStyle Hidden `
+            -PassThru
+
+        if ($process.WaitForExit($TimeoutSeconds * 1000)) {
+            return ($process.ExitCode -eq 0)
+        }
+
+        Write-Warn "$Description timed out after ${TimeoutSeconds}s. Skipping and continuing install."
+        try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch { }
+        return $false
+    } catch {
+        Write-Warn "$Description failed to start: $_"
+        return $false
+    }
+}
+
 # ============================================================================
 # Dependency checks
 # ============================================================================
@@ -376,10 +403,15 @@ function Install-SystemPackages {
     # Try winget first (most common on modern Windows)
     if ($hasWinget) {
         Write-Info "Installing $description via winget..."
+        $wingetExe = $hasWinget.Source
         foreach ($pkg in $wingetPkgs) {
-            try {
-                winget install $pkg --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
-            } catch { }
+            $pkgLabel = if ($pkg -like "*FFmpeg*") { "ffmpeg via winget" } else { "$pkg via winget" }
+            $timeout = if ($pkg -like "*FFmpeg*") { 90 } else { 120 }
+            [void](Invoke-InstallerCommandWithTimeout `
+                -FilePath $wingetExe `
+                -ArgumentList @("install", $pkg, "--silent", "--accept-package-agreements", "--accept-source-agreements") `
+                -Description $pkgLabel `
+                -TimeoutSeconds $timeout)
         }
         # Refresh PATH and recheck
         $env:Path = [Environment]::GetEnvironmentVariable("Path", "User") + ";" + [Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -399,8 +431,13 @@ function Install-SystemPackages {
     # Fallback: choco
     if ($hasChoco -and ($needRipgrep -or $needFfmpeg)) {
         Write-Info "Trying Chocolatey..."
+        $chocoExe = $hasChoco.Source
         foreach ($pkg in $chocoPkgs) {
-            try { choco install $pkg -y 2>&1 | Out-Null } catch { }
+            [void](Invoke-InstallerCommandWithTimeout `
+                -FilePath $chocoExe `
+                -ArgumentList @("install", $pkg, "-y") `
+                -Description "$pkg via Chocolatey" `
+                -TimeoutSeconds 180)
         }
         if ($needRipgrep -and (Get-Command rg -ErrorAction SilentlyContinue)) {
             Write-Success "ripgrep installed via chocolatey"
@@ -417,8 +454,13 @@ function Install-SystemPackages {
     # Fallback: scoop
     if ($hasScoop -and ($needRipgrep -or $needFfmpeg)) {
         Write-Info "Trying Scoop..."
+        $scoopExe = $hasScoop.Source
         foreach ($pkg in $scoopPkgs) {
-            try { scoop install $pkg 2>&1 | Out-Null } catch { }
+            [void](Invoke-InstallerCommandWithTimeout `
+                -FilePath $scoopExe `
+                -ArgumentList @("install", $pkg) `
+                -Description "$pkg via Scoop" `
+                -TimeoutSeconds 180)
         }
         if ($needRipgrep -and (Get-Command rg -ErrorAction SilentlyContinue)) {
             Write-Success "ripgrep installed via scoop"
