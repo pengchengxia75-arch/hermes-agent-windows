@@ -6,6 +6,9 @@ Windows-native fork of
 This version is adapted for native Windows use and does not require WSL2 for
 normal CLI installation and usage.
 
+Repository:
+[`pengchengxia75-arch/hermes-agent-windows`](https://github.com/pengchengxia75-arch/hermes-agent-windows)
+
 ## Install
 
 Open PowerShell and run:
@@ -30,6 +33,7 @@ hermes
 - no WSL2 requirement
 - Git Bash compatibility for command execution
 - simpler Windows setup for Hermes CLI
+- one-line PowerShell installation for Windows users
 
 ## Upstream
 
@@ -38,6 +42,9 @@ Original project:
 
 This repository is a Windows adaptation built on top of the upstream source
 code, not a separate project from scratch.
+
+See also:
+- [Windows support](WINDOWS_SUPPORT.md)
 
 ## License
 

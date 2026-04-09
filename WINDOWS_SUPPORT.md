@@ -2,6 +2,9 @@
 
 This fork/package of Hermes Agent supports native Windows installation and usage without WSL for the core CLI workflow.
 
+Repository:
+[`pengchengxia75-arch/hermes-agent-windows`](https://github.com/pengchengxia75-arch/hermes-agent-windows)
+
 ## Supported
 
 - One-line PowerShell install via `scripts/install.ps1`
@@ -42,7 +45,7 @@ These may work, but are not yet guaranteed to match Linux/WSL behavior:
 ## Install
 
 ```powershell
-irm https://raw.githubusercontent.com/<owner>/<repo>/<branch>/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/pengchengxia75-arch/hermes-agent-windows/main/scripts/install.ps1 | iex
 ```
 
 ## Installed Paths
@@ -64,3 +67,4 @@ hermes
 
 - After install, open a new terminal window so PATH changes are picked up.
 - If `hermes` is not found, verify that `%LOCALAPPDATA%\hermes\hermes-agent\venv\Scripts` is on your user PATH.
+- This fork is based on the upstream `NousResearch/hermes-agent` source code and keeps the MIT license.

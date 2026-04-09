@@ -1,79 +1,59 @@
 # GitHub Publish Guide
 
-This guide assumes you want to publish this Windows-capable Hermes package to your own GitHub repository.
+This repository is already published here:
 
-## 1. Create a new repo on GitHub
+[`pengchengxia75-arch/hermes-agent-windows`](https://github.com/pengchengxia75-arch/hermes-agent-windows)
 
-Create an empty repository on GitHub, for example:
+Use this guide when you want to push later updates from your local folder to GitHub.
 
-- Repository name: `hermes-agent-windows`
-- Visibility: Public or Private
-
-Do not initialize it with a README if you want the cleanest push.
-
-## 2. Open PowerShell in this folder
+## 1. Open PowerShell in this folder
 
 Folder:
 
 `C:\Users\xpc\Desktop\hermes\hermes-agent-main`
 
-## 3. Initialize git locally
+## 2. Check what changed
 
 ```powershell
-git init
-git branch -M main
+git status --short
 ```
 
-## 4. Review files before first commit
-
-You should keep at least:
-
-- `scripts/install.ps1`
-- `README.md`
-- `WINDOWS_SUPPORT.md`
-- `GITHUB_PUBLISH_GUIDE.md`
-- source code folders
-
-## 5. Add and commit
+## 3. Add and commit your updates
 
 ```powershell
 git add .
-git commit -m "Add Windows native install support for Hermes"
+git commit -m "Describe your update here"
 ```
 
-## 6. Connect your GitHub repo
-
-Replace the URL below with your own:
+Example:
 
 ```powershell
-git remote add origin https://github.com/<your-name>/<your-repo>.git
+git commit -m "Update Windows fork docs"
 ```
 
-## 7. Push
+## 4. Push to GitHub
 
 ```powershell
-git push -u origin main
+git push
 ```
 
-## 8. Public install command
+## 5. Current public install command
 
-After pushing, your one-line install command becomes:
+Share this with Windows users:
 
 ```powershell
-irm https://raw.githubusercontent.com/<your-name>/<your-repo>/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/pengchengxia75-arch/hermes-agent-windows/main/scripts/install.ps1 | iex
 ```
 
-## 9. Suggested README note
+## 6. Recommended GitHub About text
 
-Mention clearly that:
+Repository description:
 
-- Windows native install is supported for core CLI workflows
-- shell execution uses Git Bash under the hood
-- some advanced features remain experimental
+`Windows-native fork of Hermes Agent. No WSL2 required.`
 
-## 10. Optional next step
+## 7. Optional release tag
 
-After the first push, you can create a release tag:
+If you want a version tag:
 
 ```powershell
 git tag v0.8.0-windows-beta1
