@@ -454,6 +454,19 @@ function Install-Repository {
         if (Test-Path "$InstallDir\.git") {
             Write-Info "Existing installation found, updating..."
             Push-Location $InstallDir
+            $currentOrigin = ""
+            try {
+                $currentOrigin = (git remote get-url origin 2>$null).Trim()
+            } catch { }
+
+            if (-not $currentOrigin) {
+                Write-Info "Configuring origin remote..."
+                git remote add origin $RepoUrlHttps 2>$null
+            } elseif ($currentOrigin -ne $RepoUrlHttps -and $currentOrigin -ne $RepoUrlSsh) {
+                Write-Warn "Updating existing origin remote to this fork..."
+                git remote set-url origin $RepoUrlHttps
+            }
+
             git -c windows.appendAtomically=false fetch origin
             git -c windows.appendAtomically=false checkout $Branch
             git -c windows.appendAtomically=false pull origin $Branch
@@ -555,6 +568,29 @@ function Install-Repository {
     Write-Success "Repository ready"
 }
 
+function Stop-InstallProcesses {
+    param([string]$TargetRoot)
+
+    $normalizedRoot = [System.IO.Path]::GetFullPath($TargetRoot)
+    $stopped = $false
+
+    $procs = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -and $_.Path.StartsWith($normalizedRoot, [System.StringComparison]::OrdinalIgnoreCase)
+    }
+
+    foreach ($proc in $procs) {
+        try {
+            Write-Warn "Stopping process locking install dir: $($proc.ProcessName) ($($proc.Id))"
+            Stop-Process -Id $proc.Id -Force -ErrorAction Stop
+            $stopped = $true
+        } catch {
+            Write-Warn "Could not stop process $($proc.ProcessName) ($($proc.Id))"
+        }
+    }
+
+    return $stopped
+}
+
 function Install-Venv {
     if ($NoVenv) {
         Write-Info "Skipping virtual environment (-NoVenv)"
@@ -567,7 +603,16 @@ function Install-Venv {
     
     if (Test-Path "venv") {
         Write-Info "Virtual environment already exists, recreating..."
-        Remove-Item -Recurse -Force "venv"
+        try {
+            Remove-Item -Recurse -Force "venv" -ErrorAction Stop
+        } catch {
+            Write-Warn "Existing virtual environment is locked. Trying to stop running Hermes processes..."
+            $stopped = Stop-InstallProcesses -TargetRoot $InstallDir
+            if ($stopped) {
+                Start-Sleep -Seconds 2
+            }
+            Remove-Item -Recurse -Force "venv" -ErrorAction Stop
+        }
     }
     
     # uv creates the venv and pins the Python version in one step
