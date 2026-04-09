@@ -374,7 +374,7 @@ function Install-SystemPackages {
         Write-Warn "Found ffmpeg on PATH but it could not be executed. Will try to install a working ffmpeg."
     }
 
-    if (-not $needRipgrep -and -not $needFfmpeg) { return }
+    if (-not $needRipgrep) { return }
 
     # Build description and package lists for each package manager
     $descParts = @()
@@ -389,10 +389,8 @@ function Install-SystemPackages {
         $scoopPkgs += "ripgrep"
     }
     if ($needFfmpeg) {
-        $descParts += "ffmpeg for TTS voice messages"
-        $wingetPkgs += "Gyan.FFmpeg"
-        $chocoPkgs += "ffmpeg"
-        $scoopPkgs += "ffmpeg"
+        Write-Warn "ffmpeg not found. Hermes can still install and run without it."
+        Write-Info "Install later if needed: winget install Gyan.FFmpeg"
     }
 
     $description = $descParts -join " and "
@@ -429,7 +427,7 @@ function Install-SystemPackages {
     }
 
     # Fallback: choco
-    if ($hasChoco -and ($needRipgrep -or $needFfmpeg)) {
+    if ($hasChoco -and $needRipgrep) {
         Write-Info "Trying Chocolatey..."
         $chocoExe = $hasChoco.Source
         foreach ($pkg in $chocoPkgs) {
@@ -452,7 +450,7 @@ function Install-SystemPackages {
     }
 
     # Fallback: scoop
-    if ($hasScoop -and ($needRipgrep -or $needFfmpeg)) {
+    if ($hasScoop -and $needRipgrep) {
         Write-Info "Trying Scoop..."
         $scoopExe = $hasScoop.Source
         foreach ($pkg in $scoopPkgs) {
@@ -479,10 +477,7 @@ function Install-SystemPackages {
         Write-Warn "ripgrep not installed (file search will use findstr fallback)"
         Write-Info "  winget install BurntSushi.ripgrep.MSVC"
     }
-    if ($needFfmpeg) {
-        Write-Warn "ffmpeg not installed (TTS voice messages will be limited)"
-        Write-Info "  winget install Gyan.FFmpeg"
-    }
+
 }
 
 # ============================================================================
@@ -853,11 +848,11 @@ function Install-NodeDeps {
     
     if (Test-Path "package.json") {
         Write-Info "Installing Node.js dependencies (browser tools)..."
-        try {
-            npm install --silent 2>&1 | Out-Null
+        $npmExe = (Get-Command npm -ErrorAction SilentlyContinue).Source
+        if ($npmExe -and (Invoke-InstallerCommandWithTimeout -FilePath $npmExe -ArgumentList @("install", "--silent") -Description "npm install for browser tools" -TimeoutSeconds 180)) {
             Write-Success "Node.js dependencies installed"
-        } catch {
-            Write-Warn "npm install failed (browser tools may not work)"
+        } else {
+            Write-Warn "npm install skipped or failed (browser tools may not work)"
         }
     }
     
@@ -866,11 +861,11 @@ function Install-NodeDeps {
     if (Test-Path "$bridgeDir\package.json") {
         Write-Info "Installing WhatsApp bridge dependencies..."
         Push-Location $bridgeDir
-        try {
-            npm install --silent 2>&1 | Out-Null
+        $npmExe = (Get-Command npm -ErrorAction SilentlyContinue).Source
+        if ($npmExe -and (Invoke-InstallerCommandWithTimeout -FilePath $npmExe -ArgumentList @("install", "--silent") -Description "npm install for WhatsApp bridge" -TimeoutSeconds 180)) {
             Write-Success "WhatsApp bridge dependencies installed"
-        } catch {
-            Write-Warn "WhatsApp bridge npm install failed (WhatsApp may not work)"
+        } else {
+            Write-Warn "WhatsApp bridge npm install skipped or failed (WhatsApp may not work)"
         }
         Pop-Location
     }
