@@ -45,7 +45,7 @@ These may work, but are not yet guaranteed to match Linux/WSL behavior:
 ## Install
 
 ```powershell
-irm https://raw.githubusercontent.com/pengchengxia75-arch/hermes-agent-windows/main/scripts/install.ps1 | iex
+$u = "https://raw.githubusercontent.com/pengchengxia75-arch/hermes-agent-windows/main/scripts/install.ps1"; $p = "$env:TEMP\hermes-install.ps1"; Invoke-WebRequest -Uri $u -OutFile $p; powershell -ExecutionPolicy Bypass -File $p
 ```
 
 ## Installed Paths
