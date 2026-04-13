@@ -83,33 +83,29 @@ _DEFAULT_PROVIDER_MODELS = {
         "copilot-acp",
     ],
     "copilot": [
-        "gpt-5.4",
-        "gpt-5.4-mini",
+        "gpt-5",
         "gpt-5-mini",
-        "gpt-5.3-codex",
-        "gpt-5.2-codex",
+        "gpt-5-codex",
         "gpt-4.1",
         "gpt-4o",
         "gpt-4o-mini",
-        "claude-opus-4.6",
-        "claude-sonnet-4.6",
-        "claude-sonnet-4.5",
-        "claude-haiku-4.5",
+        "claude-opus-4",
+        "claude-sonnet-4",
+        "claude-haiku-4",
         "gemini-2.5-pro",
+        "gemini-2.5-flash",
         "grok-code-fast-1",
     ],
     "gemini": [
-        "gemini-3.1-pro-preview", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview",
         "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
-        "gemma-4-31b-it", "gemma-4-26b-it",
     ],
     "zai": ["glm-5", "glm-4.7", "glm-4.5", "glm-4.5-flash"],
     "kimi-coding": ["kimi-k2.5", "kimi-k2-thinking", "kimi-k2-turbo-preview"],
     "minimax": ["MiniMax-M1", "MiniMax-M1-40k", "MiniMax-M1-80k", "MiniMax-M1-128k", "MiniMax-M1-256k", "MiniMax-M2.5", "MiniMax-M2.7"],
     "minimax-cn": ["MiniMax-M1", "MiniMax-M1-40k", "MiniMax-M1-80k", "MiniMax-M1-128k", "MiniMax-M1-256k", "MiniMax-M2.5", "MiniMax-M2.7"],
-    "ai-gateway": ["anthropic/claude-opus-4.6", "anthropic/claude-sonnet-4.6", "openai/gpt-5", "google/gemini-3-flash"],
-    "kilocode": ["anthropic/claude-opus-4.6", "anthropic/claude-sonnet-4.6", "openai/gpt-5.4", "google/gemini-3-pro-preview", "google/gemini-3-flash-preview"],
-    "opencode-zen": ["gpt-5.4", "gpt-5.3-codex", "claude-sonnet-4-6", "gemini-3-flash", "glm-5", "kimi-k2.5", "minimax-m2.7"],
+    "ai-gateway": ["anthropic/claude-opus-4", "anthropic/claude-sonnet-4", "openai/gpt-5", "google/gemini-2.5-flash"],
+    "kilocode": ["anthropic/claude-opus-4", "anthropic/claude-sonnet-4", "openai/gpt-5", "google/gemini-2.5-pro", "google/gemini-2.5-flash"],
+    "opencode-zen": ["gpt-5", "gpt-5-codex", "claude-sonnet-4", "gemini-2.5-flash", "glm-5", "kimi-k2.5", "minimax-m2.7"],
     "opencode-go": ["glm-5", "kimi-k2.5", "mimo-v2-pro", "mimo-v2-omni", "minimax-m2.5", "minimax-m2.7"],
     "huggingface": [
         "Qwen/Qwen3.5-397B-A17B", "Qwen/Qwen3-235B-A22B-Thinking-2507",
@@ -237,8 +233,8 @@ def _setup_provider_model_selection(config, provider_id, current_model, prompt_c
         provider_models = _DEFAULT_PROVIDER_MODELS.get(fallback_provider_id, [])
         if provider_models:
             print_warning(
-                f"Could not auto-detect models from {pconfig.name} API — showing defaults.\n"
-                f"    Use \"Custom model\" if the model you expect isn't listed."
+                f"Could not auto-detect models from {pconfig.name} API - showing defaults.\n"
+                f"    Use \"[????] Custom model\" if the model you expect isn't listed."
             )
 
     if provider_id in {"opencode-zen", "opencode-go"}:
@@ -247,7 +243,7 @@ def _setup_provider_model_selection(config, provider_id, current_model, prompt_c
         provider_models = list(dict.fromkeys(mid for mid in provider_models if mid))
 
     model_choices = list(provider_models)
-    model_choices.append("Custom model")
+    model_choices.append("[手动输入] Custom model")
     model_choices.append(f"Keep current ({current_model})")
 
     keep_idx = len(model_choices) - 1
@@ -267,7 +263,7 @@ def _setup_provider_model_selection(config, provider_id, current_model, prompt_c
             selected_model = normalize_opencode_model_id(provider_id, selected_model)
         _set_default_model(config, selected_model)
     elif model_idx == len(provider_models):
-        custom = prompt_fn("Enter model name")
+        custom = prompt_fn("Enter model name / 输入模型名称")
         if custom:
             if is_copilot_catalog_provider:
                 selected_model = normalize_copilot_model_id(
@@ -333,7 +329,7 @@ from hermes_cli.colors import Colors, color
 def print_header(title: str):
     """Print a section header."""
     print()
-    print(color(f"◆ {title}", Colors.CYAN, Colors.BOLD))
+    print(color(f"[Section] {title}", Colors.CYAN, Colors.BOLD))
 
 
 def print_info(text: str):
@@ -343,17 +339,17 @@ def print_info(text: str):
 
 def print_success(text: str):
     """Print success message."""
-    print(color(f"✓ {text}", Colors.GREEN))
+    print(color(f"[OK] {text}", Colors.GREEN))
 
 
 def print_warning(text: str):
     """Print warning message."""
-    print(color(f"⚠ {text}", Colors.YELLOW))
+    print(color(f"[WARN] {text}", Colors.YELLOW))
 
 
 def print_error(text: str):
     """Print error message."""
-    print(color(f"✗ {text}", Colors.RED))
+    print(color(f"[FAIL] {text}", Colors.RED))
 
 
 def is_interactive_stdin() -> bool:
@@ -370,19 +366,19 @@ def is_interactive_stdin() -> bool:
 def print_noninteractive_setup_guidance(reason: str | None = None) -> None:
     """Print guidance for headless/non-interactive setup flows."""
     print()
-    print(color("⚕ Hermes Setup — Non-interactive mode", Colors.CYAN, Colors.BOLD))
+    print(color("Hermes Setup - Non-interactive mode / 非交互模式", Colors.CYAN, Colors.BOLD))
     print()
     if reason:
         print_info(reason)
-    print_info("The interactive wizard cannot be used here.")
+    print_info("The interactive wizard cannot be used here. / 当前环境无法使用交互式向导。")
     print()
-    print_info("Configure Hermes using environment variables or config commands:")
+    print_info("Configure Hermes using environment variables or config commands: / 可用环境变量或配置命令完成设置：")
     print_info("  hermes config set model.provider custom")
     print_info("  hermes config set model.base_url http://localhost:8080/v1")
     print_info("  hermes config set model.default your-model-name")
     print()
-    print_info("Or set OPENROUTER_API_KEY / OPENAI_API_KEY in your environment.")
-    print_info("Run 'hermes setup' in an interactive terminal to use the full wizard.")
+    print_info("Or set OPENROUTER_API_KEY / OPENAI_API_KEY in your environment. / 也可以直接在环境变量中设置 API Key。")
+    print_info("Run 'hermes setup' in an interactive terminal to use the full wizard. / 在交互式终端运行 hermes setup 可进入完整向导。")
     print()
 
 
@@ -452,7 +448,7 @@ def _curses_prompt_choice(question: str, choices: list, default: int = 0) -> int
                     y = row + 2
                     if y >= max_y - 1:
                         break
-                    arrow = "→" if i == cursor else " "
+                    arrow = ">" if i == cursor else " "
                     line = f" {arrow}  {choices[i]}"
                     attr = curses.A_NORMAL
                     if i == cursor:
@@ -498,15 +494,15 @@ def prompt_choice(question: str, choices: list, default: int = 0) -> int:
         print()
         return idx
 
-    print(color(question, Colors.YELLOW))
+    print(color(f"{question} / 请选择", Colors.YELLOW))
     for i, choice in enumerate(choices):
-        marker = "●" if i == default else "○"
+        marker = ">" if i == default else "-"
         if i == default:
             print(color(f"  {marker} {choice}", Colors.GREEN))
         else:
             print(f"  {marker} {choice}")
 
-    print_info(f"  Enter for default ({default + 1})  Ctrl+C to exit")
+    print_info(f"  Enter for default ({default + 1}) / 回车保留默认  Ctrl+C to exit / Ctrl+C 退出")
 
     while True:
         try:
@@ -898,7 +894,7 @@ def setup_model_provider(config: dict, *, quick: bool = False):
     from hermes_cli.config import load_config, save_config
 
     print_header("Inference Provider")
-    print_info("Choose how to connect to your main chat model.")
+    print_info("Choose how to connect to your main chat model. / 选择主对话模型的连接方式。")
     print_info(f"   Guide: {_DOCS_BASE}/integrations/providers")
     print()
 
@@ -1308,6 +1304,7 @@ def setup_terminal_backend(config: dict):
     print_header("Terminal Backend")
     print_info("Choose where Hermes runs shell commands and code.")
     print_info("This affects tool execution, file access, and isolation.")
+    print_info("（选择 Hermes 在哪里执行命令和代码。普通用户直接选 Local 本机运行即可）")
     print_info(f"   Guide: {_DOCS_BASE}/developer-guide/environments")
     print()
 
@@ -1673,6 +1670,7 @@ def setup_agent_settings(config: dict):
 
     print_header("Agent Settings")
     print_info(f"   Guide: {_DOCS_BASE}/user-guide/configuration")
+    print_info("（Agent 行为设置，不确定的话直接回车保留默认值即可）")
     print()
 
     # ── Max Iterations ──
@@ -1720,6 +1718,7 @@ def setup_agent_settings(config: dict):
     print_info(
         "Higher threshold = compress later (use more context). Lower = compress sooner."
     )
+    print_info("（自动压缩对话历史，避免超出模型上下文限制。不确定直接回车保留默认值）")
 
     config.setdefault("compression", {})["enabled"] = True
 
@@ -1744,6 +1743,7 @@ def setup_agent_settings(config: dict):
     print_info(
         "Each message adds to the conversation history, which means growing API costs."
     )
+    print_info("（会话重置策略：控制 Telegram/飞书等平台的对话历史何时自动清空，不确定直接回车保留默认值）")
     print_info("")
     print_info(
         "To manage this, sessions can automatically reset after a period of inactivity"
@@ -2230,6 +2230,7 @@ def setup_gateway(config: dict):
     print_header("Messaging Platforms")
     print_info("Connect to messaging platforms to chat with Hermes from anywhere.")
     print_info("Toggle with Space, confirm with Enter.")
+    print_info("（选择要接入的消息平台，用空格键勾选，回车确认。不需要的直接回车跳过）")
     print()
 
     # Build checklist items, pre-selecting already-configured platforms
@@ -2517,6 +2518,7 @@ def _offer_openclaw_migration(hermes_home: Path) -> bool:
     print_header("OpenClaw Installation Detected")
     print_info(f"Found OpenClaw data at {openclaw_dir}")
     print_info("Hermes can import your settings, memories, skills, and API keys.")
+    print_info("（检测到旧版 OpenClaw 数据，选 Y 可自动导入你的配置、记忆和 API Key，选 N 跳过）")
     print()
 
     if not prompt_yes_no("Would you like to import from OpenClaw?", default=True):
@@ -2755,7 +2757,7 @@ def run_setup_wizard(args):
             _run_quick_setup(config, hermes_home)
             return
         elif choice == 1:
-            # Full setup — fall through to run all sections
+            # Full setup - fall through to run all sections
             pass
         elif choice in (2, 8):
             # Separator — treat as exit
@@ -2777,7 +2779,7 @@ def run_setup_wizard(args):
                 _print_setup_summary(config, hermes_home)
             return
     else:
-        # ── First-Time Setup ──
+        # First-Time Setup
         print()
 
         # Offer OpenClaw migration before configuration begins
@@ -2786,15 +2788,15 @@ def run_setup_wizard(args):
             config = load_config()
 
         setup_mode = prompt_choice("How would you like to set up Hermes?", [
-            "Quick setup — provider, model & messaging (recommended)",
-            "Full setup — configure everything",
+            "Quick setup - provider, model & messaging (recommended) / 快速设置：模型、提供商与消息平台",
+            "Full setup - configure everything / 完整设置：配置全部内容",
         ], 0)
 
         if setup_mode == 0:
             _run_first_time_quick_setup(config, hermes_home, is_existing)
             return
 
-    # ── Full Setup — run all sections ──
+    # Full Setup - run all sections
     print_header("Configuration Location")
     print_info(f"Config file:  {get_config_path()}")
     print_info(f"Secrets file: {get_env_path()}")
@@ -2806,8 +2808,8 @@ def run_setup_wizard(args):
     if migration_ran:
         print()
         print_info("Settings were imported from OpenClaw.")
-        print_info("Each section below will show what was imported — press Enter to keep,")
-        print_info("or choose to reconfigure if needed.")
+        print_info("Each section below will show what was imported - press Enter to keep, / 下方各项会显示导入结果，回车可直接保留，")
+        print_info("or choose to reconfigure if needed. / 也可以按需重新配置。")
 
     # Section 1: Model & Provider
     if not (migration_ran and _skip_configured_section(config, "model", "Model & Provider")):
@@ -2873,7 +2875,7 @@ def _run_first_time_quick_setup(config: dict, hermes_home, is_existing: bool):
         "Connect a messaging platform? (Telegram, Discord, etc.)",
         [
             "Set up messaging now (recommended)",
-            "Skip — set up later with 'hermes setup gateway'",
+            "Skip - set up later with 'hermes setup gateway' / 先跳过，之后再配置",
         ],
         0,
     )
@@ -2896,7 +2898,7 @@ def _run_first_time_quick_setup(config: dict, hermes_home, is_existing: bool):
 
 
 def _run_quick_setup(config: dict, hermes_home):
-    """Quick setup — only configure items that are missing."""
+    """Quick setup - only configure items that are missing."""
     from hermes_cli.config import (
         get_missing_env_vars,
         get_missing_config_fields,
@@ -2904,7 +2906,7 @@ def _run_quick_setup(config: dict, hermes_home):
     )
 
     print()
-    print_header("Quick Setup — Missing Items Only")
+    print_header("Quick Setup - Missing Items Only / 快速设置：仅配置缺失项")
 
     # Check what's missing
     missing_required = [

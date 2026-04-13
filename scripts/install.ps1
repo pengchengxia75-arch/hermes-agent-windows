@@ -1,4 +1,4 @@
-﻿# ============================================================================
+# ============================================================================
 # Hermes Agent Installer for Windows
 # ============================================================================
 # Installation script for Windows (PowerShell).
@@ -121,7 +121,7 @@ function Install-Uv {
     # Install uv
     Write-Info "Installing uv (fast Python package manager)..."
     try {
-        powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex" 2>&1 | Out-Null
+        powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
         
         # Find the installed binary
         $uvExe = "$env:USERPROFILE\.local\bin\uv.exe"
@@ -144,6 +144,7 @@ function Install-Uv {
         }
         
         Write-Err "uv installed but not found on PATH"
+        Write-Info "提示：请关闭当前终端，重新打开后再运行安装命令"
         Write-Info "Try restarting your terminal and re-running"
         return $false
     } catch {
@@ -166,7 +167,7 @@ function Test-Python {
         }
     } catch { }
     
-    # Python not found 鈥?use uv to install it (no admin needed!)
+    # Python not found - use uv to install it (no admin needed!)
     Write-Info "Python $PythonVersion not found, installing via uv..."
     try {
         $uvOutput = & $UvCmd python install $PythonVersion 2>&1
@@ -281,7 +282,7 @@ function Test-Node {
         return $true
     }
 
-    Write-Info "Node.js not found 鈥?installing Node.js $NodeVersion LTS..."
+    Write-Info "Node.js not found - installing Node.js $NodeVersion LTS..."
 
     # Try winget first (cleanest on modern Windows)
     if (Get-Command winget -ErrorAction SilentlyContinue) {
@@ -547,7 +548,7 @@ function Install-Repository {
         # Fallback: download ZIP archive (bypasses git file I/O issues entirely)
         if (-not $cloneSuccess) {
             if (Test-Path $InstallDir) { Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue }
-            Write-Warn "Git clone failed 鈥?downloading ZIP archive instead..."
+            Write-Warn "Git clone failed - downloading ZIP archive instead..."
             try {
                 $zipUrl = "https://github.com/pengchengxia75-arch/hermes-agent-windows/archive/refs/heads/$Branch.zip"
                 $zipPath = "$env:TEMP\hermes-agent-$Branch.zip"
@@ -611,6 +612,9 @@ function Stop-InstallProcesses {
     $normalizedRoot = [System.IO.Path]::GetFullPath($TargetRoot)
     $stopped = $false
 
+    Write-Warn "Installer may stop running Hermes processes that are locking the install directory."
+    Write-Info "Install root being unlocked: $normalizedRoot"
+
     $procs = Get-Process -ErrorAction SilentlyContinue | Where-Object {
         $_.Path -and $_.Path.StartsWith($normalizedRoot, [System.StringComparison]::OrdinalIgnoreCase)
     }
@@ -671,10 +675,14 @@ function Install-Dependencies {
     }
     
     # Install main package with all extras
-    try {
-        & $UvCmd pip install -e ".[all]" 2>&1 | Out-Null
-    } catch {
-        & $UvCmd pip install -e "." | Out-Null
+    & $UvCmd pip install -e ".[all]"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "Full dependency install failed; retrying with base package only."
+        & $UvCmd pip install -e "."
+        if ($LASTEXITCODE -ne 0) {
+            Write-Err "依赖安装失败，请查看上方错误信息"
+            throw "Base dependency install failed"
+        }
     }
     
     Write-Success "Main package installed"
@@ -683,7 +691,7 @@ function Install-Dependencies {
     Write-Info "Installing tinker-atropos (RL training backend)..."
     if (Test-Path "tinker-atropos\pyproject.toml") {
         try {
-            & $UvCmd pip install -e ".\tinker-atropos" 2>&1 | Out-Null
+            & $UvCmd pip install -e ".\tinker-atropos" 2>&1 | ForEach-Object { Write-Host $_ -ForegroundColor DarkGray }
             Write-Success "tinker-atropos installed"
         } catch {
             Write-Warn "tinker-atropos install failed (RL tools may not work)"
@@ -849,7 +857,7 @@ function Install-NodeDeps {
     if (Test-Path "package.json") {
         Write-Info "Installing Node.js dependencies (browser tools)..."
         $npmExe = (Get-Command npm -ErrorAction SilentlyContinue).Source
-        if ($npmExe -and (Invoke-InstallerCommandWithTimeout -FilePath $npmExe -ArgumentList @("install", "--silent") -Description "npm install for browser tools" -TimeoutSeconds 180)) {
+        if ($npmExe -and (Invoke-InstallerCommandWithTimeout -FilePath $npmExe -ArgumentList @("install", "--silent") -Description "npm install for browser tools" -TimeoutSeconds 60)) {
             Write-Success "Node.js dependencies installed"
         } else {
             Write-Warn "npm install skipped or failed (browser tools may not work)"
@@ -862,7 +870,7 @@ function Install-NodeDeps {
         Write-Info "Installing WhatsApp bridge dependencies..."
         Push-Location $bridgeDir
         $npmExe = (Get-Command npm -ErrorAction SilentlyContinue).Source
-        if ($npmExe -and (Invoke-InstallerCommandWithTimeout -FilePath $npmExe -ArgumentList @("install", "--silent") -Description "npm install for WhatsApp bridge" -TimeoutSeconds 180)) {
+        if ($npmExe -and (Invoke-InstallerCommandWithTimeout -FilePath $npmExe -ArgumentList @("install", "--silent") -Description "npm install for WhatsApp bridge" -TimeoutSeconds 60)) {
             Write-Success "WhatsApp bridge dependencies installed"
         } else {
             Write-Warn "WhatsApp bridge npm install skipped or failed (WhatsApp may not work)"
@@ -999,9 +1007,9 @@ function Write-Completion {
 function Main {
     Write-Banner
     
-    if (-not (Install-Uv)) { throw "uv installation failed 鈥?cannot continue" }
-    if (-not (Test-Python)) { throw "Python $PythonVersion not available 鈥?cannot continue" }
-    if (-not (Test-Git)) { throw "Git not found 鈥?install from https://git-scm.com/download/win" }
+    if (-not (Install-Uv)) { throw "uv installation failed - cannot continue" }
+    if (-not (Test-Python)) { throw "Python $PythonVersion not available - cannot continue" }
+    if (-not (Test-Git)) { throw "Git not found - install from https://git-scm.com/download/win" }
     [void](Test-Node)              # Auto-installs if missing
     Install-SystemPackages         # ripgrep + ffmpeg in one step
     
