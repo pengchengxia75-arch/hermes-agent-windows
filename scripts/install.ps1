@@ -16,6 +16,7 @@ param(
     [switch]$NoVenv,
     [switch]$SkipSetup,
     [string]$Branch = "main",
+    [string]$BundleZip = "",
     [string]$HermesHome = "$env:LOCALAPPDATA\hermes",
     [string]$InstallDir = "$env:LOCALAPPDATA\hermes\hermes-agent"
 )
@@ -517,24 +518,66 @@ function Install-Repository {
     } else {
         $cloneSuccess = $false
 
-        # Fix Windows git "copy-fd: write returned: Invalid argument" error.
-        # Git for Windows can fail on atomic file operations (hook templates,
-        # config lock files) due to antivirus, OneDrive, or NTFS filter drivers.
-        # The -c flag injects config before any file I/O occurs.
-        Write-Info "Configuring git for Windows compatibility..."
-        $env:GIT_CONFIG_COUNT = "1"
-        $env:GIT_CONFIG_KEY_0 = "windows.appendAtomically"
-        $env:GIT_CONFIG_VALUE_0 = "false"
-        git config --global windows.appendAtomically false 2>$null
+        if ($BundleZip -and (Test-Path $BundleZip)) {
+            Write-Info "Installing from bundled repository snapshot..."
+            try {
+                $extractPath = Join-Path $env:TEMP "hermes-agent-bundled-extract"
+                if (Test-Path $extractPath) { Remove-Item -Recurse -Force $extractPath -ErrorAction SilentlyContinue }
+                Expand-Archive -Path $BundleZip -DestinationPath $extractPath -Force
 
-        # Try SSH first, then HTTPS, with -c flag for atomic write fix
-        Write-Info "Trying SSH clone..."
-        $env:GIT_SSH_COMMAND = "ssh -o BatchMode=yes -o ConnectTimeout=5"
-        try {
-            git -c windows.appendAtomically=false clone --branch $Branch --recurse-submodules $RepoUrlSsh $InstallDir
-            if ($LASTEXITCODE -eq 0) { $cloneSuccess = $true }
-        } catch { }
-        $env:GIT_SSH_COMMAND = $null
+                if (Test-Path (Join-Path $extractPath "pyproject.toml")) {
+                    $extractedDir = Get-Item $extractPath
+                } else {
+                    $candidateDirs = Get-ChildItem $extractPath -Directory
+                    $extractedDir = $candidateDirs | Where-Object { Test-Path (Join-Path $_.FullName "pyproject.toml") } | Select-Object -First 1
+                    if (-not $extractedDir) {
+                        $extractedDir = $candidateDirs | Select-Object -First 1
+                    }
+                }
+
+                if ($extractedDir) {
+                    New-Item -ItemType Directory -Force -Path (Split-Path $InstallDir) -ErrorAction SilentlyContinue | Out-Null
+                    Move-Item $extractedDir.FullName $InstallDir -Force
+                    Write-Success "Installed bundled repository snapshot"
+
+                    Push-Location $InstallDir
+                    git -c windows.appendAtomically=false init 2>$null
+                    git -c windows.appendAtomically=false config windows.appendAtomically false 2>$null
+                    git remote add origin $RepoUrlHttps 2>$null
+                    Pop-Location
+                    Write-Success "Git repo initialized for future updates"
+
+                    $cloneSuccess = $true
+                } else {
+                    Write-Warn "Bundled repository snapshot did not contain a valid project root"
+                }
+
+                Remove-Item -Recurse -Force $extractPath -ErrorAction SilentlyContinue
+            } catch {
+                Write-Warn "Bundled repository install failed: $_"
+            }
+        }
+
+        if (-not $cloneSuccess) {
+            # Fix Windows git "copy-fd: write returned: Invalid argument" error.
+            # Git for Windows can fail on atomic file operations (hook templates,
+            # config lock files) due to antivirus, OneDrive, or NTFS filter drivers.
+            # The -c flag injects config before any file I/O occurs.
+            Write-Info "Configuring git for Windows compatibility..."
+            $env:GIT_CONFIG_COUNT = "1"
+            $env:GIT_CONFIG_KEY_0 = "windows.appendAtomically"
+            $env:GIT_CONFIG_VALUE_0 = "false"
+            git config --global windows.appendAtomically false 2>$null
+
+            # Try SSH first, then HTTPS, with -c flag for atomic write fix
+            Write-Info "Trying SSH clone..."
+            $env:GIT_SSH_COMMAND = "ssh -o BatchMode=yes -o ConnectTimeout=5"
+            try {
+                git -c windows.appendAtomically=false clone --branch $Branch --recurse-submodules $RepoUrlSsh $InstallDir
+                if ($LASTEXITCODE -eq 0) { $cloneSuccess = $true }
+            } catch { }
+            $env:GIT_SSH_COMMAND = $null
+        }
         
         if (-not $cloneSuccess) {
             if (Test-Path $InstallDir) { Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue }
@@ -955,6 +998,7 @@ function Start-GatewayIfConfigured {
 }
 
 function Write-Completion {
+    $currentSessionCommand = "& '$InstallDir\venv\Scripts\hermes.exe'"
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Green
     Write-Host "                Installation Complete                       " -ForegroundColor Green
@@ -985,6 +1029,11 @@ function Write-Completion {
     Write-Host "Update to latest version"
     Write-Host ""
     Write-Host "Restart your terminal for PATH changes to take effect." -ForegroundColor Yellow
+    Write-Host "If you stay in this same PowerShell window, Hermes may still read old ~/.hermes settings." -ForegroundColor Yellow
+    Write-Host "To use the new install right now in this window:" -ForegroundColor Yellow
+    Write-Host "  `$env:HERMES_HOME = '$HermesHome'" -ForegroundColor Yellow
+    Write-Host "  `$env:HERMES_GIT_BASH_PATH = '$GitBashPath'" -ForegroundColor Yellow
+    Write-Host "  $currentSessionCommand setup" -ForegroundColor Yellow
     Write-Host ""
     if (-not $HasNode) {
         Write-Host "Note: Node.js could not be installed automatically." -ForegroundColor Yellow

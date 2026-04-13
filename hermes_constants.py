@@ -8,13 +8,55 @@ import os
 from pathlib import Path
 
 
+def _fallback_home_dir() -> Path:
+    """Best-effort home directory lookup for constrained Windows environments."""
+    userprofile = os.getenv("USERPROFILE", "").strip()
+    if userprofile:
+        return Path(userprofile)
+
+    home_drive = os.getenv("HOMEDRIVE", "").strip()
+    home_path = os.getenv("HOMEPATH", "").strip()
+    if home_drive and home_path:
+        return Path(f"{home_drive}{home_path}")
+
+    home_env = os.getenv("HOME", "").strip()
+    if home_env:
+        return Path(home_env)
+
+    try:
+        return Path.home()
+    except Exception:
+        return Path.cwd()
+
+
+def _windows_managed_home_if_present() -> Path | None:
+    """Return the managed Windows install home when it already exists."""
+    if os.name != "nt":
+        return None
+
+    local_app_data = os.getenv("LOCALAPPDATA", "").strip()
+    if not local_app_data:
+        return None
+
+    managed_home = Path(local_app_data) / "hermes"
+    if managed_home.exists():
+        return managed_home
+    return None
+
+
 def get_hermes_home() -> Path:
     """Return the Hermes home directory (default: ~/.hermes).
 
     Reads HERMES_HOME env var, falls back to ~/.hermes.
     This is the single source of truth — all other copies should import this.
     """
-    return Path(os.getenv("HERMES_HOME", Path.home() / ".hermes"))
+    override = os.getenv("HERMES_HOME", "").strip()
+    if override:
+        return Path(override)
+    managed_home = _windows_managed_home_if_present()
+    if managed_home is not None:
+        return managed_home
+    return _fallback_home_dir() / ".hermes"
 
 
 def get_optional_skills_dir(default: Path | None = None) -> Path:
