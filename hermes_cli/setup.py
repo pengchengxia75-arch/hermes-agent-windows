@@ -2516,6 +2516,11 @@ def _offer_openclaw_migration(hermes_home: Path) -> bool:
     if not openclaw_dir.is_dir():
         return False
 
+    # Skip if already migrated
+    migration_done_marker = hermes_home / "migration" / "openclaw" / ".migrated"
+    if migration_done_marker.exists():
+        return False
+
     if not _OPENCLAW_SCRIPT.exists():
         return False
 
@@ -2598,6 +2603,8 @@ def _offer_openclaw_migration(hermes_home: Path) -> bool:
         print_info(f"Full report saved to: {output_dir}")
 
     print_success("Migration complete! Continuing with setup...")
+    migration_done_marker.parent.mkdir(parents=True, exist_ok=True)
+    migration_done_marker.touch()
     return True
 
 
