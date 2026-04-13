@@ -22,8 +22,8 @@ from tools.tool_backend_helpers import managed_nous_tools_enabled
 
 def check_mark(ok: bool) -> str:
     if ok:
-        return color("✓", Colors.GREEN)
-    return color("✗", Colors.RED)
+        return color("[OK]", Colors.GREEN)
+    return color("[FAIL]", Colors.RED)
 
 def redact_key(key: str) -> str:
     """Redact an API key for display."""
@@ -62,7 +62,7 @@ def _configured_model_label(config: dict) -> str:
         model = model_cfg.strip()
     else:
         model = ""
-    return model or "(not set)"
+    return model or "(not set / 未设置)"
 
 
 def _effective_provider_label() -> str:
@@ -76,6 +76,11 @@ def _effective_provider_label() -> str:
     if effective == "openrouter" and get_env_value("OPENAI_BASE_URL"):
         effective = "custom"
 
+    if effective == "minimax":
+        return "MiniMax / MiniMax（国际站直连，Anthropic-compatible API）"
+    if effective == "minimax-cn":
+        return "MiniMax China / MiniMax China（国内直连，Anthropic-compatible API）"
+
     return provider_label(effective)
 
 
@@ -85,15 +90,9 @@ def show_status(args):
     deep = getattr(args, 'deep', False)
     
     print()
-    print(color("┌─────────────────────────────────────────────────────────┐", Colors.CYAN))
-    print(color("│                 ⚕ Hermes Agent Status                  │", Colors.CYAN))
-    print(color("└─────────────────────────────────────────────────────────┘", Colors.CYAN))
-    
-    # =========================================================================
-    # Environment
-    # =========================================================================
-    print()
-    print(color("◆ Environment", Colors.CYAN, Colors.BOLD))
+    print(color("=" * 59, Colors.CYAN))
+    print(color("                Hermes Agent Status", Colors.CYAN))
+    print(color("=" * 59, Colors.CYAN))
     print(f"  Project:      {PROJECT_ROOT}")
     print(f"  Python:       {sys.version.split()[0]}")
     
@@ -112,7 +111,7 @@ def show_status(args):
     # API Keys
     # =========================================================================
     print()
-    print(color("◆ API Keys", Colors.CYAN, Colors.BOLD))
+    print(color("[Section] API Keys / API 密钥", Colors.CYAN, Colors.BOLD))
     
     keys = {
         "OpenRouter": "OPENROUTER_API_KEY",
@@ -150,7 +149,7 @@ def show_status(args):
     # Auth Providers (OAuth)
     # =========================================================================
     print()
-    print(color("◆ Auth Providers", Colors.CYAN, Colors.BOLD))
+    print(color("[Section] Auth Providers / 登录提供商", Colors.CYAN, Colors.BOLD))
 
     try:
         from hermes_cli.auth import get_nous_auth_status, get_codex_auth_status, get_qwen_auth_status
@@ -212,11 +211,11 @@ def show_status(args):
     if managed_nous_tools_enabled():
         features = get_nous_subscription_features(config)
         print()
-        print(color("◆ Nous Subscription Features", Colors.CYAN, Colors.BOLD))
+        print(color("[Section] Nous Subscription Features / Nous 订阅功能", Colors.CYAN, Colors.BOLD))
         if not features.nous_auth_present:
-            print("  Nous Portal   ✗ not logged in")
+            print(f"  Nous Portal   {check_mark(False)} not logged in / 未登录")
         else:
-            print("  Nous Portal   ✓ managed tools available")
+            print(f"  Nous Portal   {check_mark(True)} managed tools available / 可使用托管工具")
         for feature in features.items():
             if feature.managed_by_nous:
                 state = "active via Nous subscription"
@@ -235,7 +234,7 @@ def show_status(args):
     # API-Key Providers
     # =========================================================================
     print()
-    print(color("◆ API-Key Providers", Colors.CYAN, Colors.BOLD))
+    print(color("[Section] API-Key Providers / API 密钥提供商", Colors.CYAN, Colors.BOLD))
 
     apikey_providers = {
         "Z.AI / GLM":       ("GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY"),
@@ -257,7 +256,7 @@ def show_status(args):
     # Terminal Configuration
     # =========================================================================
     print()
-    print(color("◆ Terminal Backend", Colors.CYAN, Colors.BOLD))
+    print(color("[Section] Terminal Backend / 终端后端", Colors.CYAN, Colors.BOLD))
     
     terminal_env = os.getenv("TERMINAL_ENV", "")
     if not terminal_env:
@@ -289,9 +288,10 @@ def show_status(args):
     # Messaging Platforms
     # =========================================================================
     print()
-    print(color("◆ Messaging Platforms", Colors.CYAN, Colors.BOLD))
+    print(color("[Section] Messaging Platforms / 消息平台", Colors.CYAN, Colors.BOLD))
     
     platforms = {
+        "QQ": ("QQ_ONEBOT_URL", "QQ_HOME_CHANNEL"),
         "Telegram": ("TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHANNEL"),
         "Discord": ("DISCORD_BOT_TOKEN", "DISCORD_HOME_CHANNEL"),
         "WhatsApp": ("WHATSAPP_ENABLED", None),
@@ -322,7 +322,7 @@ def show_status(args):
     # Gateway Status
     # =========================================================================
     print()
-    print(color("◆ Gateway Service", Colors.CYAN, Colors.BOLD))
+    print(color("[Section] Gateway Service / 网关服务", Colors.CYAN, Colors.BOLD))
     
     if sys.platform.startswith('linux'):
         try:
@@ -365,7 +365,7 @@ def show_status(args):
     # Cron Jobs
     # =========================================================================
     print()
-    print(color("◆ Scheduled Jobs", Colors.CYAN, Colors.BOLD))
+    print(color("[Section] Scheduled Jobs / 定时任务", Colors.CYAN, Colors.BOLD))
     
     jobs_file = get_hermes_home() / "cron" / "jobs.json"
     if jobs_file.exists():
@@ -385,7 +385,7 @@ def show_status(args):
     # Sessions
     # =========================================================================
     print()
-    print(color("◆ Sessions", Colors.CYAN, Colors.BOLD))
+    print(color("[Section] Sessions / 会话", Colors.CYAN, Colors.BOLD))
     
     sessions_file = get_hermes_home() / "sessions" / "sessions.json"
     if sessions_file.exists():
@@ -404,7 +404,7 @@ def show_status(args):
     # =========================================================================
     if deep:
         print()
-        print(color("◆ Deep Checks", Colors.CYAN, Colors.BOLD))
+        print(color("[Section] Deep Checks / 深度检查", Colors.CYAN, Colors.BOLD))
         
         # Check OpenRouter connectivity
         openrouter_key = os.getenv("OPENROUTER_API_KEY", "")

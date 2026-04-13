@@ -475,3 +475,29 @@ def test_setup_summary_does_not_mark_incomplete_browserbase_as_available(tmp_pat
     assert "Browser Automation (Browserbase)" not in output
     assert "Browser Automation" in output
     assert "BROWSERBASE_API_KEY/BROWSERBASE_PROJECT_ID" in output
+
+
+def test_select_provider_and_model_removes_legacy_minimax_portal_alias(tmp_path, monkeypatch):
+    from hermes_cli.main import select_provider_and_model
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    _clear_provider_env(monkeypatch)
+
+    cfg = load_config()
+    cfg["custom_providers"] = [
+        {"name": "minimax-portal", "base_url": "https://api.minimaxi.com/anthropic"},
+        {"name": "Saved Local", "base_url": "http://localhost:8080/v1"},
+        {"name": "Saved Local", "base_url": "http://localhost:8080/v1"},
+    ]
+    cfg["model"] = {"provider": "minimax-cn", "default": "MiniMax-M2.7"}
+    save_config(cfg)
+
+    monkeypatch.setattr("hermes_cli.auth.resolve_provider", lambda requested=None, **kwargs: "minimax-cn")
+    monkeypatch.setattr("hermes_cli.main._prompt_provider_choice", lambda choices, default=0: len(choices) - 1)
+
+    select_provider_and_model()
+
+    reloaded = load_config()
+    assert reloaded["custom_providers"] == [
+        {"name": "Saved Local", "base_url": "http://localhost:8080/v1"}
+    ]

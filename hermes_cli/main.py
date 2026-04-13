@@ -155,6 +155,7 @@ import time as _time
 from datetime import datetime
 
 from hermes_cli import __version__, __release_date__
+from hermes_cli.models import provider_label
 from hermes_constants import OPENROUTER_BASE_URL
 
 logger = logging.getLogger(__name__)
@@ -879,9 +880,49 @@ def select_provider_and_model(args=None):
     from hermes_cli.auth import (
         resolve_provider, AuthError, format_auth_error,
     )
-    from hermes_cli.config import load_config, get_env_value
+    from hermes_cli.config import load_config, get_env_value, save_config
+
+    def _normalize_custom_providers(cfg: dict) -> bool:
+        """Drop duplicate or legacy custom providers that now map to built-ins."""
+        providers = cfg.get("custom_providers")
+        if not isinstance(providers, list):
+            return False
+
+        normalized = []
+        seen = set()
+        changed = False
+
+        for entry in providers:
+            if not isinstance(entry, dict):
+                normalized.append(entry)
+                continue
+
+            name = str(entry.get("name") or "").strip()
+            base_url = str(entry.get("base_url") or "").strip().rstrip("/")
+            key = (name.lower(), base_url)
+
+            # Legacy alias kept from early Windows migrations. It is the same
+            # endpoint as the built-in minimax-cn provider, so keeping it only
+            # confuses the setup UI.
+            if key == ("minimax-portal", "https://api.minimaxi.com/anthropic"):
+                changed = True
+                continue
+
+            if key in seen:
+                changed = True
+                continue
+
+            seen.add(key)
+            normalized.append(entry)
+
+        if changed:
+            cfg["custom_providers"] = normalized
+        return changed
 
     config = load_config()
+    if _normalize_custom_providers(config):
+        save_config(config)
+
     current_model = config.get("model")
     if isinstance(current_model, dict):
         current_model = current_model.get("default", "")
@@ -914,62 +955,46 @@ def select_provider_and_model(args=None):
     if active == "openrouter" and get_env_value("OPENAI_BASE_URL"):
         active = "custom"
 
-    provider_labels = {
-        "openrouter": "OpenRouter",
-        "nous": "Nous Portal",
-        "openai-codex": "OpenAI Codex",
-        "qwen-oauth": "Qwen OAuth",
-        "copilot-acp": "GitHub Copilot ACP",
-        "copilot": "GitHub Copilot",
-        "anthropic": "Anthropic",
-        "gemini": "Google AI Studio",
-        "zai": "Z.AI / GLM",
-        "kimi-coding": "Kimi / Moonshot",
-        "minimax": "MiniMax",
-        "minimax-cn": "MiniMax (China)",
-        "opencode-zen": "OpenCode Zen",
-        "opencode-go": "OpenCode Go",
-        "ai-gateway": "AI Gateway",
-        "kilocode": "Kilo Code",
-        "alibaba": "Alibaba Cloud (DashScope)",
-        "huggingface": "Hugging Face",
-        "custom": "Custom endpoint",
-    }
-    active_label = provider_labels.get(active, active) if active else "none"
+    active_label = provider_label(active) if active else "none / 未选择"
+    if active == "minimax":
+        active_label = "MiniMax / MiniMax（国际站直连，Anthropic-compatible API）"
+    elif active == "minimax-cn":
+        active_label = "MiniMax China / MiniMax China（国内直连，Anthropic-compatible API）"
+    current_model = current_model or "(not set / 未设置)"
 
     print()
     print(f"  Current model:    {current_model}")
     print(f"  Active provider:  {active_label}")
     print()
 
-    # Step 1: Provider selection — top providers shown first, rest behind "More..."
+    # Step 1: Provider selection - top providers shown first, rest behind "More..."
     top_providers = [
-        ("nous", "Nous Portal (Nous Research subscription)"),
-        ("openrouter", "OpenRouter (100+ models, pay-per-use)"),
-        ("anthropic", "Anthropic (Claude models — API key or Claude Code)"),
-        ("openai-codex", "OpenAI Codex"),
-        ("qwen-oauth", "Qwen OAuth (reuses local Qwen CLI login)"),
-        ("copilot", "GitHub Copilot (uses GITHUB_TOKEN or gh auth token)"),
-        ("huggingface", "Hugging Face Inference Providers (20+ open models)"),
+        ("nous", "Nous Portal (Nous Research subscription) / Nous Portal（Nous 订阅）"),
+        ("openrouter", "OpenRouter (100+ models, pay-per-use) / OpenRouter（模型多，按量付费）"),
+        ("anthropic", "Anthropic (Claude models - API key or Claude Code) / Anthropic（Claude 模型）"),
+        ("openai-codex", "OpenAI Codex / OpenAI Codex（OpenAI 登录）"),
+        ("qwen-oauth", "Qwen OAuth (reuses local Qwen CLI login) / Qwen OAuth（复用本地 Qwen 登录）"),
+        ("copilot", "GitHub Copilot (uses GITHUB_TOKEN or gh auth token) / GitHub Copilot（复用 GitHub 登录）"),
+        ("huggingface", "Hugging Face Inference Providers (20+ open models) / Hugging Face（开放模型集合）"),
     ]
 
     extended_providers = [
-        ("copilot-acp", "GitHub Copilot ACP (spawns `copilot --acp --stdio`)"),
-        ("gemini", "Google AI Studio (Gemini models — OpenAI-compatible endpoint)"),
-        ("zai", "Z.AI / GLM (Zhipu AI direct API)"),
-        ("kimi-coding", "Kimi / Moonshot (Moonshot AI direct API)"),
-        ("minimax", "MiniMax (global direct API)"),
-        ("minimax-cn", "MiniMax China (domestic direct API)"),
-        ("kilocode", "Kilo Code (Kilo Gateway API)"),
-        ("opencode-zen", "OpenCode Zen (35+ curated models, pay-as-you-go)"),
-        ("opencode-go", "OpenCode Go (open models, $10/month subscription)"),
-        ("ai-gateway", "AI Gateway (Vercel — 200+ models, pay-per-use)"),
-        ("alibaba", "Alibaba Cloud / DashScope Coding (Qwen + multi-provider)"),
+        ("copilot-acp", "GitHub Copilot ACP (spawns `copilot --acp --stdio`) / Copilot ACP（ACP 模式）"),
+        ("gemini", "Google AI Studio (Gemini models - OpenAI-compatible endpoint) / Gemini（Google AI Studio）"),
+        ("zai", "Z.AI / GLM (Zhipu AI direct API) / Z.AI（智谱直连）"),
+        ("kimi-coding", "Kimi / Moonshot (Moonshot AI direct API) / Kimi（月之暗面直连）"),
+        ("minimax", "MiniMax (global direct API, api.minimax.io) / MiniMax（国际站直连，适合海外账号）"),
+        ("minimax-cn", "MiniMax China (domestic direct API, api.minimaxi.com) / MiniMax China（国内站直连，适合国内账号）"),
+        ("kilocode", "Kilo Code (Kilo Gateway API) / Kilo Code"),
+        ("opencode-zen", "OpenCode Zen (35+ curated models, pay-as-you-go) / OpenCode Zen（精选模型，按量付费）"),
+        ("opencode-go", "OpenCode Go (open models, $10/month subscription) / OpenCode Go（订阅制）"),
+        ("ai-gateway", "AI Gateway (Vercel - 200+ models, pay-per-use) / AI Gateway（Vercel 网关）"),
+        ("alibaba", "Alibaba Cloud / DashScope Coding (Qwen + multi-provider) / 阿里云 DashScope"),
     ]
 
     # Add user-defined custom providers from config.yaml
     custom_providers_cfg = config.get("custom_providers") or []
-    _custom_provider_map = {}  # key → {name, base_url, api_key}
+    _custom_provider_map = {}  # key -> {name, base_url, api_key}
     if isinstance(custom_providers_cfg, list):
         for entry in custom_providers_cfg:
             if not isinstance(entry, dict):
@@ -980,9 +1005,10 @@ def select_provider_and_model(args=None):
                 continue
             key = "custom:" + name.lower().replace(" ", "-")
             short_url = base_url.replace("https://", "").replace("http://", "").rstrip("/")
+            display_name = name
             saved_model = entry.get("model", "")
-            model_hint = f" — {saved_model}" if saved_model else ""
-            top_providers.append((key, f"{name} ({short_url}){model_hint}"))
+            model_hint = f" - {saved_model}" if saved_model else ""
+            top_providers.append((key, f"{display_name} ({short_url}){model_hint} / 已保存的自定义端点"))
             _custom_provider_map[key] = {
                 "name": name,
                 "base_url": base_url,
@@ -1005,13 +1031,13 @@ def select_provider_and_model(args=None):
     default_idx = 0
     for key, label in top_providers:
         if active and key == active:
-            ordered.append((key, f"{label}  ← currently active"))
+            ordered.append((key, f"{label}  - currently active / 当前正在使用"))
             default_idx = len(ordered) - 1
         else:
             ordered.append((key, label))
 
-    ordered.append(("more", "More providers..."))
-    ordered.append(("cancel", "Cancel"))
+    ordered.append(("more", "More providers... / 更多提供商"))
+    ordered.append(("cancel", "Cancel / 取消"))
 
     provider_idx = _prompt_provider_choice(
         [label for _, label in ordered], default=default_idx,
@@ -1022,13 +1048,13 @@ def select_provider_and_model(args=None):
 
     selected_provider = ordered[provider_idx][0]
 
-    # "More providers..." — show the extended list
+    # "More providers..." - show the extended list
     if selected_provider == "more":
         ext_ordered = list(extended_providers)
-        ext_ordered.append(("custom", "Custom endpoint (enter URL manually)"))
+        ext_ordered.append(("custom", "Custom endpoint (enter URL manually) / 自定义端点"))
         if _custom_provider_map:
-            ext_ordered.append(("remove-custom", "Remove a saved custom provider"))
-        ext_ordered.append(("cancel", "Cancel"))
+            ext_ordered.append(("remove-custom", "Remove a saved custom provider / 删除已保存的自定义提供商"))
+        ext_ordered.append(("cancel", "Cancel / 取消"))
 
         ext_idx = _prompt_provider_choice(
             [label for _, label in ext_ordered], default=0,
@@ -1073,18 +1099,17 @@ def _prompt_provider_choice(choices, *, default=0):
     if the user cancels.
     """
     try:
-        from hermes_cli.setup import _curses_prompt_choice
-        idx = _curses_prompt_choice("Select provider:", choices, default)
-        if idx >= 0:
-            print()
-            return idx
+        from hermes_cli.setup import prompt_choice
+        idx = prompt_choice("Select provider:", choices, default)
+        print()
+        return idx
     except Exception:
         pass
 
     # Fallback: numbered list
-    print("Select provider:")
+    print("Select provider / 选择提供商:")
     for i, c in enumerate(choices, 1):
-        marker = "→" if i - 1 == default else " "
+        marker = ">" if i - 1 == default else " "
         print(f"  {marker} {i}. {c}")
     print()
     while True:

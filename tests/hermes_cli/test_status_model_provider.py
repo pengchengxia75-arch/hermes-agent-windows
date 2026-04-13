@@ -122,3 +122,23 @@ def test_show_status_hides_nous_subscription_section_when_feature_flag_is_off(mo
 
     out = capsys.readouterr().out
     assert "Nous Subscription Features" not in out
+
+
+def test_show_status_displays_minimax_china_provider_label(monkeypatch, capsys, tmp_path):
+    from hermes_cli import status as status_mod
+
+    _patch_common_status_deps(monkeypatch, status_mod, tmp_path)
+    monkeypatch.setattr(
+        status_mod,
+        "load_config",
+        lambda: {"model": {"default": "MiniMax-M2.7", "provider": "minimax-cn"}},
+        raising=False,
+    )
+    monkeypatch.setattr(status_mod, "resolve_requested_provider", lambda requested=None: "minimax-cn", raising=False)
+    monkeypatch.setattr(status_mod, "resolve_provider", lambda requested=None, **kwargs: "minimax-cn", raising=False)
+
+    status_mod.show_status(SimpleNamespace(all=False, deep=False))
+
+    out = capsys.readouterr().out
+    assert "Model:        MiniMax-M2.7" in out
+    assert "Provider:     MiniMax China / MiniMax China" in out
