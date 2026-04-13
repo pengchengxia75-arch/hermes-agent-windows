@@ -66,3 +66,15 @@ def test_get_available_skills_null_category_becomes_general():
 
     assert "general" in result
     assert result["general"] == ["orphan-skill"]
+
+
+def test_get_available_skills_hides_claude_code_from_startup_banner():
+    skills = [
+        {"name": "claude-code", "description": "Hidden on startup", "category": "autonomous-ai-agents"},
+        {"name": "hermes-agent", "description": "Visible", "category": "autonomous-ai-agents"},
+    ]
+    with patch("tools.skills_tool._find_all_skills", return_value=skills):
+        from hermes_cli.banner import get_available_skills
+        result = get_available_skills()
+
+    assert result["autonomous-ai-agents"] == ["hermes-agent"]

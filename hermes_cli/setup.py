@@ -349,12 +349,33 @@ def print_warning(text: str):
 
 def print_zh(text: str):
     """Print Chinese hint in yellow for non-technical users."""
-    print(color(f"  💡 {text}", Colors.YELLOW))
+    print(color(f"  [提示] {text}", Colors.YELLOW))
 
 
 def print_error(text: str):
     """Print error message."""
     print(color(f"[FAIL] {text}", Colors.RED))
+
+
+def _split_bilingual_text(text: str) -> tuple[str, str]:
+    """Split 'English / 中文' display text into two parts."""
+    if " / " in text:
+        left, right = text.split(" / ", 1)
+        return left.strip(), right.strip()
+    return text.strip(), ""
+
+
+def _format_bilingual_choice(choice: str, *, selected: bool = False, compact: bool = False) -> str:
+    """Render bilingual menu text with different colors for EN/ZH parts."""
+    english, chinese = _split_bilingual_text(choice)
+    english_color = Colors.GREEN if selected else Colors.RESET
+    english_text = color(english, english_color) if english_color != Colors.RESET else english
+    if not chinese:
+        return english_text
+    chinese_text = color(chinese, Colors.CYAN if selected else Colors.DIM)
+    if compact:
+        return f"{english_text} / {chinese_text}"
+    return f"{english_text}\n      {chinese_text}"
 
 
 def is_interactive_stdin() -> bool:
@@ -485,27 +506,51 @@ def _curses_prompt_choice(question: str, choices: list, default: int = 0) -> int
 
 
 def prompt_choice(question: str, choices: list, default: int = 0) -> int:
-    """Prompt for a choice from a list with arrow key navigation.
+    """Prompt for a choice from a list.
 
     Escape keeps the current default (skips the question).
     Ctrl+C exits the wizard.
     """
-    idx = _curses_prompt_choice(question, choices, default)
-    if idx >= 0:
-        if idx == default:
-            print_info("  Skipped (keeping current)")
+    # Windows users have consistently preferred stable numbered menus over a
+    # mix of arrow-key dialogs and fallback prompts. Keep the richer pickers on
+    # Unix-like terminals, but force a deterministic numbered menu on Windows.
+    if os.name != "nt":
+        try:
+            from prompt_toolkit.shortcuts import radiolist_dialog
+
+            values = [
+                (idx, _format_bilingual_choice(choice, selected=(idx == default), compact=True))
+                for idx, choice in enumerate(choices)
+            ]
+            result = radiolist_dialog(
+                title=question,
+                text="↑/↓ 选择  Enter 确认  Esc 保留默认",
+                values=values,
+                default=default,
+                ok_text="确认",
+                cancel_text="保留默认",
+            ).run()
+            if result is not None:
+                if result == default:
+                    print_info("  Skipped (keeping current)")
+                    print()
+                return result
+        except Exception:
+            pass
+
+        idx = _curses_prompt_choice(question, choices, default)
+        if idx >= 0:
+            if idx == default:
+                print_info("  Skipped (keeping current)")
+                print()
+                return default
             print()
-            return default
-        print()
-        return idx
+            return idx
 
     print(color(f"{question} / 请选择", Colors.YELLOW))
-    for i, choice in enumerate(choices):
-        marker = ">" if i == default else "-"
-        if i == default:
-            print(color(f"  {marker} {choice}", Colors.GREEN))
-        else:
-            print(f"  {marker} {choice}")
+    for i, choice in enumerate(choices, 1):
+        marker = ">" if i - 1 == default else " "
+        print(f"  {marker} {i}. {_format_bilingual_choice(choice, selected=(i - 1 == default))}")
 
     print_info(f"  Enter for default ({default + 1}) / 回车保留默认  Ctrl+C to exit / Ctrl+C 退出")
 

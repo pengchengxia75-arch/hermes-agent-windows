@@ -18,8 +18,15 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from prompt_toolkit import print_formatted_text as _pt_print
-from prompt_toolkit.formatted_text import ANSI as _PT_ANSI
+try:
+    from prompt_toolkit import print_formatted_text as _pt_print
+    from prompt_toolkit.formatted_text import ANSI as _PT_ANSI
+except ImportError:
+    def _pt_print(*args, **kwargs):
+        return None
+
+    def _PT_ANSI(value):
+        return value
 
 logger = logging.getLogger(__name__)
 
@@ -115,8 +122,13 @@ def get_available_skills() -> Dict[str, List[str]]:
     except Exception:
         return {}
 
+    # Hide orchestration helper skills that confuse end users during startup.
+    hidden_startup_skills = {"claude-code"}
+
     skills_by_category: Dict[str, List[str]] = {}
     for skill in all_skills:
+        if skill.get("name") in hidden_startup_skills:
+            continue
         category = skill.get("category") or "general"
         skills_by_category.setdefault(category, []).append(skill["name"])
     return skills_by_category
