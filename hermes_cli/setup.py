@@ -2899,15 +2899,14 @@ def _offer_launch_chat():
     """Prompt the user to jump straight into chat after setup."""
     print()
     if prompt_yes_no("Launch hermes chat now?", True):
-        from hermes_cli.main import cmd_chat
-        from types import SimpleNamespace
-        cmd_chat(SimpleNamespace(
-            query=None, resume=None, continue_last=None, model=None,
-            provider=None, effort=None, skin=None, oneshot=False,
-            quiet=False, verbose=False, toolsets=None, skills=None,
-            yolo=False, source=None, worktree=False, checkpoints=False,
-            pass_session_id=False, max_turns=None,
-        ))
+        import subprocess
+
+        cmd = [sys.executable, "-m", "hermes_cli.main"]
+        try:
+            subprocess.run(cmd, check=False)
+        except Exception as exc:
+            print_error(f"Could not launch Hermes chat automatically: {exc}")
+            print_info("Run 'hermes' manually in a new terminal window.")
 
 
 def _run_first_time_quick_setup(config: dict, hermes_home, is_existing: bool):
