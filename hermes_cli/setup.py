@@ -347,6 +347,11 @@ def print_warning(text: str):
     print(color(f"[WARN] {text}", Colors.YELLOW))
 
 
+def print_zh(text: str):
+    """Print Chinese hint in yellow for non-technical users."""
+    print(color(f"  💡 {text}", Colors.YELLOW))
+
+
 def print_error(text: str):
     """Print error message."""
     print(color(f"[FAIL] {text}", Colors.RED))
@@ -1304,7 +1309,7 @@ def setup_terminal_backend(config: dict):
     print_header("Terminal Backend")
     print_info("Choose where Hermes runs shell commands and code.")
     print_info("This affects tool execution, file access, and isolation.")
-    print_info("（选择 Hermes 在哪里执行命令和代码。普通用户直接选 Local 本机运行即可）")
+    print_zh("选择 Hermes 在哪里执行命令和代码。第一次用直接选第 1 项「Local」在本机运行就好，其他选项是高级用法。")
     print_info(f"   Guide: {_DOCS_BASE}/developer-guide/environments")
     print()
 
@@ -1670,7 +1675,7 @@ def setup_agent_settings(config: dict):
 
     print_header("Agent Settings")
     print_info(f"   Guide: {_DOCS_BASE}/user-guide/configuration")
-    print_info("（Agent 行为设置，不确定的话直接回车保留默认值即可）")
+    print_zh("Agent 行为设置。不知道填什么的话，直接一路回车用默认值就好。")
     print()
 
     # ── Max Iterations ──
@@ -1718,7 +1723,7 @@ def setup_agent_settings(config: dict):
     print_info(
         "Higher threshold = compress later (use more context). Lower = compress sooner."
     )
-    print_info("（自动压缩对话历史，避免超出模型上下文限制。不确定直接回车保留默认值）")
+    print_zh("对话历史压缩设置。当聊天内容太长时自动总结旧内容，节省费用。直接回车用默认值就好。")
 
     config.setdefault("compression", {})["enabled"] = True
 
@@ -1743,7 +1748,7 @@ def setup_agent_settings(config: dict):
     print_info(
         "Each message adds to the conversation history, which means growing API costs."
     )
-    print_info("（会话重置策略：控制 Telegram/飞书等平台的对话历史何时自动清空，不确定直接回车保留默认值）")
+    print_zh("会话重置设置。控制在 Telegram/飞书等平台聊天时，多久自动开始新对话。直接回车用默认值就好。")
     print_info("")
     print_info(
         "To manage this, sessions can automatically reset after a period of inactivity"
@@ -2230,7 +2235,7 @@ def setup_gateway(config: dict):
     print_header("Messaging Platforms")
     print_info("Connect to messaging platforms to chat with Hermes from anywhere.")
     print_info("Toggle with Space, confirm with Enter.")
-    print_info("（选择要接入的消息平台，用空格键勾选，回车确认。不需要的直接回车跳过）")
+    print_zh("选择要接入的消息平台（如飞书、Telegram）。用数字键选择，空格键勾选/取消，回车确认。不需要接入平台直接回车跳过。")
     print()
 
     # Build checklist items, pre-selecting already-configured platforms
@@ -2518,7 +2523,7 @@ def _offer_openclaw_migration(hermes_home: Path) -> bool:
     print_header("OpenClaw Installation Detected")
     print_info(f"Found OpenClaw data at {openclaw_dir}")
     print_info("Hermes can import your settings, memories, skills, and API keys.")
-    print_info("（检测到旧版 OpenClaw 数据，选 Y 可自动导入你的配置、记忆和 API Key，选 N 跳过）")
+    print_zh("检测到你之前用过 OpenClaw（Hermes 的前身）。选 Y 可以把你的 API Key、记忆和配置自动搬过来，选 N 跳过从头配置。")
     print()
 
     if not prompt_yes_no("Would you like to import from OpenClaw?", default=True):

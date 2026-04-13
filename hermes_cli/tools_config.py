@@ -37,13 +37,13 @@ def _print_info(text: str):
     print(color(f"  {text}", Colors.DIM))
 
 def _print_success(text: str):
-    print(color(f"✓ {text}", Colors.GREEN))
+    print(color(f"[OK] {text}", Colors.GREEN))
 
 def _print_warning(text: str):
-    print(color(f"⚠ {text}", Colors.YELLOW))
+    print(color(f"[WARN] {text}", Colors.YELLOW))
 
 def _print_error(text: str):
-    print(color(f"✗ {text}", Colors.RED))
+    print(color(f"[FAIL] {text}", Colors.RED))
 
 def _prompt(question: str, default: str = None, password: bool = False) -> str:
     if default:
@@ -67,24 +67,24 @@ def _prompt(question: str, default: str = None, password: bool = False) -> str:
 # Each entry: (toolset_name, label, description)
 # These map to keys in toolsets.py TOOLSETS dict.
 CONFIGURABLE_TOOLSETS = [
-    ("web",             "🔍 Web Search & Scraping",    "web_search, web_extract"),
-    ("browser",         "🌐 Browser Automation",       "navigate, click, type, scroll"),
-    ("terminal",        "💻 Terminal & Processes",      "terminal, process"),
-    ("file",            "📁 File Operations",           "read, write, patch, search"),
-    ("code_execution",  "⚡ Code Execution",            "execute_code"),
-    ("vision",          "👁️  Vision / Image Analysis",  "vision_analyze"),
-    ("image_gen",       "🎨 Image Generation",          "image_generate"),
-    ("moa",             "🧠 Mixture of Agents",         "mixture_of_agents"),
-    ("tts",             "🔊 Text-to-Speech",            "text_to_speech"),
-    ("skills",          "📚 Skills",                    "list, view, manage"),
-    ("todo",            "📋 Task Planning",             "todo"),
-    ("memory",          "💾 Memory",                    "persistent memory across sessions"),
-    ("session_search",  "🔎 Session Search",            "search past conversations"),
-    ("clarify",         "❓ Clarifying Questions",      "clarify"),
-    ("delegation",      "👥 Task Delegation",           "delegate_task"),
-    ("cronjob",         "⏰ Cron Jobs",                 "create/list/update/pause/resume/run, with optional attached skills"),
-    ("rl",              "🧪 RL Training",               "Tinker-Atropos training tools"),
-    ("homeassistant",    "🏠 Home Assistant",           "smart home device control"),
+    ("web",             "Web Search & Scraping / ???????",    "web_search, web_extract"),
+    ("browser",         "Browser Automation / ??????",       "navigate, click, type, scroll"),
+    ("terminal",        "Terminal & Processes / ?????",      "terminal, process"),
+    ("file",            "File Operations / ????",           "read, write, patch, search"),
+    ("code_execution",  "Code Execution / ????",            "execute_code"),
+    ("vision",          "Vision / Image Analysis / ????",  "vision_analyze"),
+    ("image_gen",       "Image Generation / ????",          "image_generate"),
+    ("moa",             "Mixture of Agents / ?????",         "mixture_of_agents"),
+    ("tts",             "Text-to-Speech / ????",            "text_to_speech"),
+    ("skills",          "Skills / ??",                    "list, view, manage"),
+    ("todo",            "Task Planning / ????",             "todo"),
+    ("memory",          "Memory / ??",                    "persistent memory across sessions"),
+    ("session_search",  "Session Search / ????",            "search past conversations"),
+    ("clarify",         "Clarifying Questions / ????",      "clarify"),
+    ("delegation",      "Task Delegation / ????",           "delegate_task"),
+    ("cronjob",         "Cron Jobs / ????",                 "create/list/update/pause/resume/run, with optional attached skills"),
+    ("rl",              "RL Training / ??????",               "Tinker-Atropos training tools"),
+    ("homeassistant",    "Home Assistant / ????",           "smart home device control"),
 ]
 
 # Toolsets that are OFF by default for new installs.
@@ -120,21 +120,21 @@ def _get_plugin_toolset_keys() -> set:
 
 # Platform display config
 PLATFORMS = {
-    "cli":      {"label": "🖥️  CLI",       "default_toolset": "hermes-cli"},
-    "telegram": {"label": "📱 Telegram",   "default_toolset": "hermes-telegram"},
-    "discord":  {"label": "💬 Discord",    "default_toolset": "hermes-discord"},
-    "slack":    {"label": "💼 Slack",      "default_toolset": "hermes-slack"},
-    "whatsapp": {"label": "📱 WhatsApp",   "default_toolset": "hermes-whatsapp"},
-    "signal":   {"label": "📡 Signal",     "default_toolset": "hermes-signal"},
-    "homeassistant": {"label": "🏠 Home Assistant", "default_toolset": "hermes-homeassistant"},
-    "email":    {"label": "📧 Email",      "default_toolset": "hermes-email"},
-    "matrix":   {"label": "💬 Matrix",     "default_toolset": "hermes-matrix"},
- "dingtalk": {"label": "💬 DingTalk", "default_toolset": "hermes-dingtalk"},
-    "feishu": {"label": "🪽 Feishu", "default_toolset": "hermes-feishu"},
-    "wecom": {"label": "💬 WeCom", "default_toolset": "hermes-wecom"},
-    "api_server": {"label": "🌐 API Server", "default_toolset": "hermes-api-server"},
-    "mattermost": {"label": "💬 Mattermost", "default_toolset": "hermes-mattermost"},
-    "webhook": {"label": "🔗 Webhook", "default_toolset": "hermes-webhook"},
+    "cli":      {"label": "CLI / ???",       "default_toolset": "hermes-cli"},
+    "telegram": {"label": "Telegram / ??",   "default_toolset": "hermes-telegram"},
+    "discord":  {"label": "Discord",    "default_toolset": "hermes-discord"},
+    "slack":    {"label": "Slack",      "default_toolset": "hermes-slack"},
+    "whatsapp": {"label": "WhatsApp",   "default_toolset": "hermes-whatsapp"},
+    "signal":   {"label": "Signal",     "default_toolset": "hermes-signal"},
+    "homeassistant": {"label": "Home Assistant / ????", "default_toolset": "hermes-homeassistant"},
+    "email":    {"label": "Email / ??",      "default_toolset": "hermes-email"},
+    "matrix":   {"label": "Matrix",     "default_toolset": "hermes-matrix"},
+    "dingtalk": {"label": "DingTalk / ??", "default_toolset": "hermes-dingtalk"},
+    "feishu": {"label": "Feishu / ??", "default_toolset": "hermes-feishu"},
+    "wecom": {"label": "WeCom / ????", "default_toolset": "hermes-wecom"},
+    "api_server": {"label": "API Server / API ??", "default_toolset": "hermes-api-server"},
+    "mattermost": {"label": "Mattermost", "default_toolset": "hermes-mattermost"},
+    "webhook": {"label": "Webhook / ????", "default_toolset": "hermes-webhook"},
 }
 
 
@@ -365,13 +365,14 @@ TOOLSET_ENV_REQUIREMENTS = {
 def _run_post_setup(post_setup_key: str):
     """Run post-setup hooks for tools that need extra installation steps."""
     import shutil
+    npm_cmd = shutil.which("npm") or shutil.which("npm.cmd")
     if post_setup_key in ("agent_browser", "browserbase"):
         node_modules = PROJECT_ROOT / "node_modules" / "agent-browser"
-        if not node_modules.exists() and shutil.which("npm"):
+        if not node_modules.exists() and npm_cmd:
             _print_info("    Installing Node.js dependencies for browser tools...")
             import subprocess
             result = subprocess.run(
-                ["npm", "install", "--silent"],
+                [npm_cmd, "install", "--silent"],
                 capture_output=True, text=True, cwd=str(PROJECT_ROOT)
             )
             if result.returncode == 0:
@@ -384,11 +385,11 @@ def _run_post_setup(post_setup_key: str):
 
     elif post_setup_key == "camofox":
         camofox_dir = PROJECT_ROOT / "node_modules" / "@askjo" / "camoufox-browser"
-        if not camofox_dir.exists() and shutil.which("npm"):
+        if not camofox_dir.exists() and npm_cmd:
             _print_info("    Installing Camofox browser server...")
             import subprocess
             result = subprocess.run(
-                ["npm", "install", "--silent"],
+                [npm_cmd, "install", "--silent"],
                 capture_output=True, text=True, cwd=str(PROJECT_ROOT)
             )
             if result.returncode == 0:
@@ -1316,7 +1317,7 @@ def tools_command(args=None, first_install: bool = False, config: dict = None):
     # Non-interactive summary mode for CLI usage
     if getattr(args, "summary", False):
         total = len(_get_effective_configurable_toolsets())
-        print(color("⚕ Tool Summary", Colors.CYAN, Colors.BOLD))
+        print(color("Tool Summary / ????", Colors.CYAN, Colors.BOLD))
         print()
         summary = _platform_toolset_summary(config, enabled_platforms)
         for pkey in enabled_platforms:
@@ -1327,14 +1328,14 @@ def tools_command(args=None, first_install: bool = False, config: dict = None):
             if enabled:
                 for ts_key in sorted(enabled):
                     label = next((l for k, l, _ in _get_effective_configurable_toolsets() if k == ts_key), ts_key)
-                    print(color(f"    ✓ {label}", Colors.GREEN))
+                    print(color(f"    [OK] {label}", Colors.GREEN))
             else:
                 print(color("    (none enabled)", Colors.DIM))
         print()
         return
-    print(color("⚕ Hermes Tool Configuration", Colors.CYAN, Colors.BOLD))
-    print(color("  Enable or disable tools per platform.", Colors.DIM))
-    print(color("  Tools that need API keys will be configured when enabled.", Colors.DIM))
+    print(color("Hermes Tool Configuration / ????", Colors.CYAN, Colors.BOLD))
+    print(color("  Enable or disable tools per platform. / ???????????", Colors.DIM))
+    print(color("  Tools that need API keys will be configured when enabled. / ?????????????????", Colors.DIM))
     print(color("  Guide: https://hermes-agent.nousresearch.com/docs/user-guide/features/tools", Colors.DIM))
     print()
 
@@ -1368,7 +1369,7 @@ def tools_command(args=None, first_install: bool = False, config: dict = None):
             if managed_nous_tools_enabled():
                 for ts_key in sorted(auto_configured):
                     label = next((l for k, l, _ in CONFIGURABLE_TOOLSETS if k == ts_key), ts_key)
-                    print(color(f"  ✓ {label}: using your Nous subscription defaults", Colors.GREEN))
+                    print(color(f"  [OK] {label}: using your Nous subscription defaults / ?? Nous ????", Colors.GREEN))
 
             # Walk through ALL selected tools that have provider options or
             # need API keys.  This ensures browser (Local vs Browserbase),
@@ -1382,18 +1383,18 @@ def tools_command(args=None, first_install: bool = False, config: dict = None):
 
             if to_configure:
                 print()
-                print(color(f"  Configuring {len(to_configure)} tool(s):", Colors.YELLOW))
+                print(color(f"  Configuring {len(to_configure)} tool(s) / ??????:", Colors.YELLOW))
                 for ts_key in to_configure:
                     label = next((l for k, l, _ in _get_effective_configurable_toolsets() if k == ts_key), ts_key)
-                    print(color(f"    • {label}", Colors.DIM))
-                print(color("  You can skip any tool you don't need right now.", Colors.DIM))
+                    print(color(f"    - {label}", Colors.DIM))
+                print(color("  You can skip any tool you do not need right now. / ?????????????", Colors.DIM))
                 print()
                 for ts_key in to_configure:
                     _configure_toolset(ts_key, config)
 
             _save_platform_tools(config, pkey, new_enabled)
             save_config(config)
-            print(color(f"  ✓ Saved {pinfo['label']} tool configuration", Colors.GREEN))
+            print(color(f"  [OK] Saved {pinfo['label']} tool configuration / ?????", Colors.GREEN))
             print()
 
         return
@@ -1412,12 +1413,12 @@ def tools_command(args=None, first_install: bool = False, config: dict = None):
 
     if len(platform_keys) > 1:
         platform_choices.append("Configure all platforms (global)")
-    platform_choices.append("Reconfigure an existing tool's provider or API key")
+    platform_choices.append("Reconfigure an existing tool's provider or API key / ?????????")
 
     # Show MCP option if any MCP servers are configured
     _has_mcp = bool(config.get("mcp_servers"))
     if _has_mcp:
-        platform_choices.append("Configure MCP server tools")
+        platform_choices.append("Configure MCP server tools / ?? MCP ??")
 
     platform_choices.append("Done")
 
