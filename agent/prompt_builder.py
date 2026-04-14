@@ -54,6 +54,9 @@ _CONTEXT_INVISIBLE_CHARS = {
 
 def _scan_context_content(content: str, filename: str) -> str:
     """Scan context file content for injection. Returns sanitized content."""
+    # Strip BOM silently — Windows editors add it as an encoding marker, not a threat
+    content = content.lstrip('\ufeff')
+
     findings = []
 
     # Check invisible unicode
