@@ -1152,6 +1152,19 @@ def _model_flow_openrouter(config, current_model=""):
         print()
 
     from hermes_cli.models import model_ids, get_pricing_for_provider
+    from hermes_cli.config import load_config, save_config, get_env_value, save_env_value
+
+    # Allow custom base URL (e.g. proxy or mirror)
+    current_base = get_env_value("OPENROUTER_BASE_URL") or os.getenv("OPENROUTER_BASE_URL", "") or OPENROUTER_BASE_URL
+    try:
+        override = input(f"Base URL [{current_base}]: ").strip()
+    except (KeyboardInterrupt, EOFError):
+        override = ""
+    effective_base = override if override else current_base
+    if override:
+        save_env_value("OPENROUTER_BASE_URL", effective_base)
+    print()
+
     openrouter_models = model_ids()
 
     # Fetch live pricing (non-blocking — returns empty dict on failure)
@@ -1162,14 +1175,13 @@ def _model_flow_openrouter(config, current_model=""):
         _save_model_choice(selected)
 
         # Update config provider and deactivate any OAuth provider
-        from hermes_cli.config import load_config, save_config
         cfg = load_config()
         model = cfg.get("model")
         if not isinstance(model, dict):
             model = {"default": model} if model else {}
             cfg["model"] = model
         model["provider"] = "openrouter"
-        model["base_url"] = OPENROUTER_BASE_URL
+        model["base_url"] = effective_base
         model["api_mode"] = "chat_completions"
         save_config(cfg)
         deactivate_provider()
