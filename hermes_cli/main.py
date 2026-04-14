@@ -2227,17 +2227,26 @@ def _model_flow_kimi(config, current_model=""):
         print(f"  {pconfig.name} API key: {existing_key[:8]}... ✓")
         print()
 
-    # Step 2: Auto-detect endpoint from key prefix
+    # Step 2: Auto-detect endpoint from key prefix, allow manual override
     is_coding_plan = existing_key.startswith("sk-kimi-")
     if is_coding_plan:
         effective_base = KIMI_CODE_BASE_URL
         print(f"  Detected Kimi Coding Plan key → {effective_base}")
+        # Clear any manual base URL override so auto-detection works at runtime
+        if base_url_env and get_env_value(base_url_env):
+            save_env_value(base_url_env, "")
     else:
-        effective_base = pconfig.inference_base_url
-        print(f"  Using Moonshot endpoint → {effective_base}")
-    # Clear any manual base URL override so auto-detection works at runtime
-    if base_url_env and get_env_value(base_url_env):
-        save_env_value(base_url_env, "")
+        default_base = pconfig.inference_base_url
+        existing_base = (get_env_value(base_url_env) if base_url_env else "") or default_base
+        try:
+            entered = input(f"  Base URL [{existing_base}]: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print()
+            return
+        effective_base = entered if entered else existing_base
+        if base_url_env:
+            save_env_value(base_url_env, effective_base)
+        print(f"  Using endpoint → {effective_base}")
     print()
 
     # Step 3: Model selection — show appropriate models for the endpoint
