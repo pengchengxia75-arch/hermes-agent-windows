@@ -58,3 +58,8 @@ mini-swe-agent/
 # Nix
 .direnv/
 result
+
+# PyInstaller build artifacts
+packaging/windows-installer/build/
+packaging/windows-installer/dist/
+packaging/windows-installer/_repo_stage/
