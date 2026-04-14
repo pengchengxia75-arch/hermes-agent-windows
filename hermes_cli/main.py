@@ -2282,25 +2282,24 @@ def _model_flow_kimi(config, current_model=""):
         except (KeyboardInterrupt, EOFError):
             selected = None
 
+    # Always save provider and base URL, even if model selection is skipped
+    cfg = load_config()
+    model = cfg.get("model")
+    if not isinstance(model, dict):
+        model = {"default": model} if model else {}
+        cfg["model"] = model
+    model["provider"] = provider_id
+    model["base_url"] = effective_base
+    model.pop("api_mode", None)  # let runtime auto-detect from URL
+    save_config(cfg)
+    deactivate_provider()
+
     if selected:
         _save_model_choice(selected)
-
-        # Update config with provider and base URL
-        cfg = load_config()
-        model = cfg.get("model")
-        if not isinstance(model, dict):
-            model = {"default": model} if model else {}
-            cfg["model"] = model
-        model["provider"] = provider_id
-        model["base_url"] = effective_base
-        model.pop("api_mode", None)  # let runtime auto-detect from URL
-        save_config(cfg)
-        deactivate_provider()
-
         endpoint_label = "Kimi Coding" if is_coding_plan else "Moonshot"
         print(f"Default model set to: {selected} (via {endpoint_label})")
     else:
-        print("No change.")
+        print(f"Base URL updated to: {effective_base}")
 
 
 def _model_flow_api_key_provider(config, provider_id, current_model=""):
