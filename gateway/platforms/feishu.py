@@ -103,6 +103,18 @@ from hermes_constants import get_hermes_home
 
 logger = logging.getLogger(__name__)
 
+
+def _web_response(payload: dict[str, Any], status: int = 200, text: str | None = None) -> Any:
+    """Return an aiohttp response when available, otherwise a tiny test-friendly fallback."""
+    if web is not None:
+        if text is not None:
+            return web.Response(status=status, text=text)
+        return web.json_response(payload, status=status)
+
+    body = text if text is not None else json.dumps(payload, ensure_ascii=False)
+    return SimpleNamespace(status=status, text=body, payload=payload)
+
+
 # ---------------------------------------------------------------------------
 # Regex patterns
 # ---------------------------------------------------------------------------
@@ -2311,7 +2323,7 @@ class FeishuAdapter(BasePlatformAdapter):
         if not self._check_webhook_rate_limit(rate_key):
             logger.warning("[Feishu] Webhook rate limit exceeded for %s", remote_ip)
             self._record_webhook_anomaly(remote_ip, "429")
-            return web.Response(status=429, text="Too Many Requests")
+            return _web_response({"code": 429, "msg": "Too Many Requests"}, status=429, text="Too Many Requests")
 
         # Content-Type guard — Feishu always sends application/json.
         headers = getattr(request, "headers", {}) or {}
@@ -2319,14 +2331,14 @@ class FeishuAdapter(BasePlatformAdapter):
         if content_type and content_type != "application/json":
             logger.warning("[Feishu] Webhook rejected: unexpected Content-Type %r from %s", content_type, remote_ip)
             self._record_webhook_anomaly(remote_ip, "415")
-            return web.Response(status=415, text="Unsupported Media Type")
+            return _web_response({"code": 415, "msg": "Unsupported Media Type"}, status=415, text="Unsupported Media Type")
 
         # Body size guard — reject early via Content-Length when present.
         content_length = getattr(request, "content_length", None)
         if content_length is not None and content_length > _FEISHU_WEBHOOK_MAX_BODY_BYTES:
             logger.warning("[Feishu] Webhook body too large (%d bytes) from %s", content_length, remote_ip)
             self._record_webhook_anomaly(remote_ip, "413")
-            return web.Response(status=413, text="Request body too large")
+            return _web_response({"code": 413, "msg": "Request body too large"}, status=413, text="Request body too large")
 
         try:
             body_bytes: bytes = await asyncio.wait_for(
@@ -2336,26 +2348,26 @@ class FeishuAdapter(BasePlatformAdapter):
         except asyncio.TimeoutError:
             logger.warning("[Feishu] Webhook body read timed out after %ds from %s", _FEISHU_WEBHOOK_BODY_TIMEOUT_SECONDS, remote_ip)
             self._record_webhook_anomaly(remote_ip, "408")
-            return web.Response(status=408, text="Request Timeout")
+            return _web_response({"code": 408, "msg": "Request Timeout"}, status=408, text="Request Timeout")
         except Exception:
             self._record_webhook_anomaly(remote_ip, "400")
-            return web.json_response({"code": 400, "msg": "failed to read body"}, status=400)
+            return _web_response({"code": 400, "msg": "failed to read body"}, status=400)
 
         if len(body_bytes) > _FEISHU_WEBHOOK_MAX_BODY_BYTES:
             logger.warning("[Feishu] Webhook body exceeds limit (%d bytes) from %s", len(body_bytes), remote_ip)
             self._record_webhook_anomaly(remote_ip, "413")
-            return web.Response(status=413, text="Request body too large")
+            return _web_response({"code": 413, "msg": "Request body too large"}, status=413, text="Request body too large")
 
         try:
             payload = json.loads(body_bytes.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
             self._record_webhook_anomaly(remote_ip, "400")
-            return web.json_response({"code": 400, "msg": "invalid json"}, status=400)
+            return _web_response({"code": 400, "msg": "invalid json"}, status=400)
 
         # URL verification challenge — respond before other checks so that Feishu's
         # subscription setup works even before encrypt_key is wired.
         if payload.get("type") == "url_verification":
-            return web.json_response({"challenge": payload.get("challenge", "")})
+            return _web_response({"challenge": payload.get("challenge", "")})
 
         # Verification token check — second layer of defence beyond signature (matches openclaw).
         if self._verification_token:
@@ -2364,18 +2376,18 @@ class FeishuAdapter(BasePlatformAdapter):
             if not incoming_token or not hmac.compare_digest(incoming_token, self._verification_token):
                 logger.warning("[Feishu] Webhook rejected: invalid verification token from %s", remote_ip)
                 self._record_webhook_anomaly(remote_ip, "401-token")
-                return web.Response(status=401, text="Invalid verification token")
+                return _web_response({"code": 401, "msg": "Invalid verification token"}, status=401, text="Invalid verification token")
 
         # Timing-safe signature verification (only enforced when encrypt_key is set).
         if self._encrypt_key and not self._is_webhook_signature_valid(request.headers, body_bytes):
             logger.warning("[Feishu] Webhook rejected: invalid signature from %s", remote_ip)
             self._record_webhook_anomaly(remote_ip, "401-sig")
-            return web.Response(status=401, text="Invalid signature")
+            return _web_response({"code": 401, "msg": "Invalid signature"}, status=401, text="Invalid signature")
 
         if payload.get("encrypt"):
             logger.error("[Feishu] Encrypted webhook payloads are not supported by Hermes webhook mode")
             self._record_webhook_anomaly(remote_ip, "400-encrypted")
-            return web.json_response({"code": 400, "msg": "encrypted webhook payloads are not supported"}, status=400)
+            return _web_response({"code": 400, "msg": "encrypted webhook payloads are not supported"}, status=400)
 
         self._clear_webhook_anomaly(remote_ip)
 
@@ -2395,7 +2407,7 @@ class FeishuAdapter(BasePlatformAdapter):
             self._on_card_action_trigger(data)
         else:
             logger.debug("[Feishu] Ignoring webhook event type: %s", event_type or "unknown")
-        return web.json_response({"code": 0, "msg": "ok"})
+        return _web_response({"code": 0, "msg": "ok"})
 
     def _is_webhook_signature_valid(self, headers: Any, body_bytes: bytes) -> bool:
         """Verify Feishu webhook signature using timing-safe comparison.

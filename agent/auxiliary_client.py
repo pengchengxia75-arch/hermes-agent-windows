@@ -51,7 +51,20 @@ from pathlib import Path  # noqa: F401 — used by test mocks
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
-from openai import OpenAI
+try:
+    from openai import OpenAI, AsyncOpenAI
+except ImportError:
+    class OpenAI:  # type: ignore[no-redef]
+        def __init__(self, *args, **kwargs):
+            raise ImportError(
+                "openai package is required for auxiliary client OpenAI backends"
+            )
+
+    class AsyncOpenAI:  # type: ignore[no-redef]
+        def __init__(self, *args, **kwargs):
+            raise ImportError(
+                "openai package is required for auxiliary client OpenAI backends"
+            )
 
 from agent.credential_pool import load_pool
 from hermes_cli.config import get_hermes_home
@@ -1138,8 +1151,6 @@ def _resolve_auto() -> Tuple[Optional[OpenAI], Optional[str]]:
 
 def _to_async_client(sync_client, model: str):
     """Convert a sync client to its async counterpart, preserving Codex routing."""
-    from openai import AsyncOpenAI
-
     if isinstance(sync_client, CodexAuxiliaryClient):
         return AsyncCodexAuxiliaryClient(sync_client), model
     if isinstance(sync_client, AnthropicAuxiliaryClient):

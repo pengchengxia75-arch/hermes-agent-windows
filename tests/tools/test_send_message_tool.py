@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from gateway.config import Platform
-from tools.send_message_tool import _send_telegram, _send_to_platform, send_message_tool
+from tools.send_message_tool import _send_qq, _send_telegram, _send_to_platform, send_message_tool
 
 
 def _run_async_immediately(coro):
@@ -33,6 +33,38 @@ def _install_telegram_mock(monkeypatch, bot):
 
 
 class TestSendMessageTool:
+    def test_parses_explicit_qq_group_target(self):
+        qq_cfg = SimpleNamespace(enabled=True, token=None, extra={"url": "http://127.0.0.1:3000"})
+        config = SimpleNamespace(
+            platforms={Platform.QQ: qq_cfg},
+            get_home_channel=lambda _platform: None,
+        )
+
+        with patch("gateway.config.load_gateway_config", return_value=config), \
+             patch("tools.interrupt.is_interrupted", return_value=False), \
+             patch("model_tools._run_async", side_effect=_run_async_immediately), \
+             patch("tools.send_message_tool._send_to_platform", new=AsyncMock(return_value={"success": True})) as send_mock, \
+             patch("gateway.mirror.mirror_to_session", return_value=True):
+            result = json.loads(
+                send_message_tool(
+                    {
+                        "action": "send",
+                        "target": "qq:group:123456",
+                        "message": "hello qq",
+                    }
+                )
+            )
+
+        assert result["success"] is True
+        send_mock.assert_awaited_once_with(
+            Platform.QQ,
+            qq_cfg,
+            "group:123456",
+            "hello qq",
+            thread_id=None,
+            media_files=[],
+        )
+
     def test_cron_duplicate_target_is_skipped_and_explained(self):
         home = SimpleNamespace(chat_id="-1001")
         config, _telegram_cfg = _make_config()
@@ -480,6 +512,71 @@ class TestSendToPlatformWhatsapp:
 
         assert result["success"] is True
         async_mock.assert_awaited_once_with({"bridge_port": 3000}, chat_id, "hello from hermes")
+
+
+class TestSendToPlatformQQ:
+    def test_qq_routes_via_onebot_sender(self):
+        async_mock = AsyncMock(return_value={"success": True, "platform": "qq", "chat_id": "group:123456"})
+
+        with patch("tools.send_message_tool._send_qq", async_mock):
+            result = asyncio.run(
+                _send_to_platform(
+                    Platform.QQ,
+                    SimpleNamespace(enabled=True, token=None, extra={"url": "http://127.0.0.1:3000"}),
+                    "group:123456",
+                    "hello from hermes",
+                )
+            )
+
+        assert result["success"] is True
+        async_mock.assert_awaited_once_with({"url": "http://127.0.0.1:3000"}, "group:123456", "hello from hermes")
+
+
+class TestSendQQ:
+    def test_send_qq_uses_group_endpoint_for_group_targets(self, monkeypatch):
+        calls = []
+
+        class FakeResponse:
+            status = 200
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def json(self, content_type=None):
+                return {"status": "ok", "data": {"message_id": 42}}
+
+        class FakeSession:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            def post(self, url, json=None, headers=None):
+                calls.append((url, json, headers))
+                return FakeResponse()
+
+        monkeypatch.setitem(
+            sys.modules,
+            "aiohttp",
+            SimpleNamespace(ClientSession=lambda timeout=None: FakeSession(), ClientTimeout=lambda total=None: object()),
+        )
+
+        result = asyncio.run(
+            _send_qq(
+                {"url": "ws://127.0.0.1:3000", "access_token": "abc"},
+                "group:123456",
+                "hello qq",
+            )
+        )
+
+        assert result["success"] is True
+        assert calls[0][0] == "http://127.0.0.1:3000/send_group_msg"
+        assert calls[0][1]["group_id"] == 123456
+        assert calls[0][2]["Authorization"] == "Bearer abc"
 
 
 class TestSendTelegramHtmlDetection:

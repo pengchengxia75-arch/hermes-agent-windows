@@ -129,6 +129,18 @@ def _install_script_path() -> Path:
     raise FileNotFoundError("Could not find scripts/install.ps1 in bundled resources.")
 
 
+def _bundled_repo_zip_path() -> Path | None:
+    root = _resource_root()
+    candidates = [
+        root / "repo" / "hermes-agent-bundle.zip",
+        root / "hermes-agent-bundle.zip",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def _find_command(name: str) -> str | None:
     return shutil.which(name)
 
@@ -290,6 +302,7 @@ def _print_preflight(checks: Iterable[dict[str, str | bool]]) -> None:
 
 def _build_install_command(args: argparse.Namespace) -> tuple[list[str], Path]:
     install_script = _install_script_path()
+    bundled_repo_zip = _bundled_repo_zip_path()
     temp_dir = Path(tempfile.mkdtemp(prefix="hermes-installer-"))
     atexit.register(shutil.rmtree, temp_dir, ignore_errors=True)
     temp_script = temp_dir / "install.ps1"
@@ -305,6 +318,8 @@ def _build_install_command(args: argparse.Namespace) -> tuple[list[str], Path]:
     ]
     if args.branch:
         cmd.extend(["-Branch", args.branch])
+    if bundled_repo_zip:
+        cmd.extend(["-BundleZip", str(bundled_repo_zip)])
     if args.hermes_home:
         cmd.extend(["-HermesHome", args.hermes_home])
     if args.install_dir:
@@ -388,7 +403,15 @@ def _stream_process(cmd: list[str], log_path: Path) -> int:
         )
         assert process.stdout is not None
         for line in process.stdout:
-            sys.stdout.write(line)
+            safe_line = line
+            try:
+                safe_line.encode(sys.stdout.encoding or "utf-8", errors="strict")
+            except Exception:
+                safe_line = line.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(
+                    sys.stdout.encoding or "utf-8",
+                    errors="replace",
+                )
+            sys.stdout.write(safe_line)
             handle.write(line)
         return process.wait()
 

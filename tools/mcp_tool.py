@@ -2092,9 +2092,14 @@ def probe_mcp_server_tools() -> Dict[str, List[tuple]]:
             return_exceptions=True,
         )
 
+    probe_coro = _probe_all()
     try:
-        _run_on_mcp_loop(_probe_all(), timeout=120)
+        _run_on_mcp_loop(probe_coro, timeout=120)
     except Exception as exc:
+        try:
+            probe_coro.close()
+        except Exception:
+            pass
         logger.debug("MCP probe failed: %s", exc)
     finally:
         _stop_mcp_loop()
@@ -2159,7 +2164,10 @@ def _kill_orphaned_mcp_children() -> None:
 
     for pid in pids:
         try:
-            os.kill(pid, _signal.SIGKILL)
+            kill_signal = getattr(_signal, "SIGKILL", getattr(_signal, "SIGTERM", None))
+            if kill_signal is None:
+                continue
+            os.kill(pid, kill_signal)
             logger.debug("Force-killed orphaned MCP stdio process %d", pid)
         except (ProcessLookupError, PermissionError, OSError):
             pass  # Already exited or inaccessible

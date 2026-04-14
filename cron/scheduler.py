@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 # Valid delivery platforms — used to validate user-supplied platform names
 # in cron delivery targets, preventing env var enumeration via crafted names.
 _KNOWN_DELIVERY_PLATFORMS = frozenset({
-    "telegram", "discord", "slack", "whatsapp", "signal",
+    "qq", "telegram", "discord", "slack", "whatsapp", "signal",
     "matrix", "mattermost", "homeassistant", "dingtalk", "feishu",
     "wecom", "sms", "email", "webhook",
 })
@@ -59,6 +59,11 @@ _hermes_home = get_hermes_home()
 
 # File-based lock prevents concurrent ticks from gateway + daemon + systemd timer
 _LOCK_DIR = _hermes_home / "cron"
+_xdist_worker = os.getenv("PYTEST_XDIST_WORKER", "").strip()
+if _xdist_worker:
+    # Parallel test workers should not contend on a global cron lock; isolate
+    # their lockfiles while keeping production behavior unchanged.
+    _LOCK_DIR = _LOCK_DIR / _xdist_worker
 _LOCK_FILE = _LOCK_DIR / ".tick.lock"
 
 
@@ -223,6 +228,7 @@ def _deliver_result(job: dict, content: str, adapters=None, loop=None) -> Option
     from gateway.config import load_gateway_config, Platform
 
     platform_map = {
+        "qq": Platform.QQ,
         "telegram": Platform.TELEGRAM,
         "discord": Platform.DISCORD,
         "slack": Platform.SLACK,

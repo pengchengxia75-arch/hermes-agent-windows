@@ -5,7 +5,7 @@ a = Analysis(
     ['C:\\Users\\xpc\\Desktop\\hermes\\hermes-agent-windows\\packaging\\windows-installer\\bootstrap.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\xpc\\Desktop\\hermes\\hermes-agent-windows\\scripts\\install.ps1', 'scripts')],
+    datas=[('C:\\Users\\xpc\\Desktop\\hermes\\hermes-agent-windows\\scripts\\install.ps1', 'scripts'), ('C:\\Users\\xpc\\AppData\\Local\\Temp\\hermes-agent-bundle.zip', 'repo')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

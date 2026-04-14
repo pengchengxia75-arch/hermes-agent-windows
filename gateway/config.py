@@ -48,6 +48,7 @@ def _normalize_unauthorized_dm_behavior(value: Any, default: str = "pair") -> st
 class Platform(Enum):
     """Supported messaging platforms."""
     LOCAL = "local"
+    QQ = "qq"
     TELEGRAM = "telegram"
     DISCORD = "discord"
     WHATSAPP = "whatsapp"
@@ -262,6 +263,9 @@ class GatewayConfig:
                 continue
             # Platforms that use token/api_key auth
             if config.token or config.api_key:
+                connected.append(platform)
+            # QQ uses extra dict for bridge URL
+            elif platform == Platform.QQ and config.extra.get("url"):
                 connected.append(platform)
             # WhatsApp uses enabled flag only (bridge handles auth)
             elif platform == Platform.WHATSAPP:
@@ -664,6 +668,27 @@ def load_gateway_config() -> GatewayConfig:
 
 def _apply_env_overrides(config: GatewayConfig) -> None:
     """Apply environment variable overrides to config."""
+
+    # QQ (OneBot bridge)
+    qq_url = os.getenv("QQ_ONEBOT_URL") or os.getenv("QQ_ONEBOT_WS_URL") or os.getenv("QQ_ONEBOT_HTTP_URL")
+    if qq_url:
+        if Platform.QQ not in config.platforms:
+            config.platforms[Platform.QQ] = PlatformConfig()
+        config.platforms[Platform.QQ].enabled = True
+        config.platforms[Platform.QQ].extra["url"] = qq_url
+        qq_access_token = os.getenv("QQ_ONEBOT_ACCESS_TOKEN", "")
+        if qq_access_token:
+            config.platforms[Platform.QQ].extra["access_token"] = qq_access_token
+        qq_default_target = os.getenv("QQ_DEFAULT_TARGET_TYPE", "")
+        if qq_default_target:
+            config.platforms[Platform.QQ].extra["default_target_type"] = qq_default_target.lower()
+    qq_home = os.getenv("QQ_HOME_CHANNEL")
+    if qq_home and Platform.QQ in config.platforms:
+        config.platforms[Platform.QQ].home_channel = HomeChannel(
+            platform=Platform.QQ,
+            chat_id=qq_home,
+            name=os.getenv("QQ_HOME_CHANNEL_NAME", "Home"),
+        )
     
     # Telegram
     telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")

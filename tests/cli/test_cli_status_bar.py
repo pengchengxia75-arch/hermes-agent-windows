@@ -206,6 +206,25 @@ class TestCLIStatusBar:
         assert "claude-sonnet-4-20250514" in text
 
 
+def test_status_bar_falls_back_to_agent_model_when_cli_model_is_blank():
+    cli_obj = _make_cli(model="")
+    _attach_agent(
+        cli_obj,
+        prompt_tokens=10_000,
+        completion_tokens=2_400,
+        total_tokens=12_400,
+        api_calls=7,
+        context_tokens=12_400,
+        context_length=200_000,
+    )
+    cli_obj.agent.model = "MiniMax-M2.7"
+
+    snapshot = cli_obj._get_status_bar_snapshot()
+
+    assert snapshot["model_name"] == "MiniMax-M2.7"
+    assert snapshot["model_short"] == "MiniMax-M2.7"
+
+
 class TestCLIUsageReport:
     def test_show_usage_includes_estimated_cost(self, capsys):
         cli_obj = _attach_agent(

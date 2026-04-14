@@ -283,6 +283,12 @@ GOOGLE_MODEL_OPERATIONAL_GUIDANCE = (
 DEVELOPER_ROLE_MODELS = ("gpt-5", "codex")
 
 PLATFORM_HINTS = {
+    "qq": (
+        "You are on QQ via a OneBot bridge. "
+        "Keep formatting plain and concise because markdown rendering is inconsistent. "
+        "Prefer short paragraphs and explicit labels over fancy formatting. "
+        "Images may be sent natively when supported by the platform adapter."
+    ),
     "whatsapp": (
         "You are on a text messaging communication platform, WhatsApp. "
         "Please do not use markdown as it does not render. "

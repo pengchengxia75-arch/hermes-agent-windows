@@ -357,6 +357,24 @@ class TestSignalAuthorization:
             result = gw._is_user_authorized(source)
             assert result is False
 
+    def test_qq_allowlist_authorizes_matching_user(self):
+        """QQ should use the same per-platform allowlist flow as other gateways."""
+        from gateway.run import GatewayRunner
+        from gateway.config import GatewayConfig
+
+        gw = GatewayRunner.__new__(GatewayRunner)
+        gw.config = GatewayConfig()
+        gw.pairing_store = MagicMock()
+        gw.pairing_store.is_approved.return_value = False
+
+        source = MagicMock()
+        source.platform = Platform.QQ
+        source.user_id = "24680"
+
+        with patch.dict("os.environ", {"QQ_ALLOWED_USERS": "24680,13579"}, clear=True):
+            result = gw._is_user_authorized(source)
+            assert result is True
+
 
 # ---------------------------------------------------------------------------
 # Send Message Tool

@@ -36,23 +36,112 @@ os.environ["HERMES_QUIET"] = "1"  # Our own modules
 import yaml
 
 # prompt_toolkit for fixed input area TUI
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.styles import Style as PTStyle
-from prompt_toolkit.patch_stdout import patch_stdout
-from prompt_toolkit.application import Application
-from prompt_toolkit.layout import Layout, HSplit, Window, FormattedTextControl, ConditionalContainer
-from prompt_toolkit.layout.processors import Processor, Transformation, PasswordProcessor, ConditionalProcessor
-from prompt_toolkit.filters import Condition
-from prompt_toolkit.layout.dimension import Dimension
-from prompt_toolkit.layout.menus import CompletionsMenu
-from prompt_toolkit.widgets import TextArea
-from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit import print_formatted_text as _pt_print
-from prompt_toolkit.formatted_text import ANSI as _PT_ANSI
 try:
-    from prompt_toolkit.cursor_shapes import CursorShape
-    _STEADY_CURSOR = CursorShape.BLOCK  # Non-blinking block cursor
-except (ImportError, AttributeError):
+    from prompt_toolkit.history import FileHistory
+    from prompt_toolkit.styles import Style as PTStyle
+    from prompt_toolkit.patch_stdout import patch_stdout
+    from prompt_toolkit.application import Application
+    from prompt_toolkit.layout import Layout, HSplit, Window, FormattedTextControl, ConditionalContainer
+    from prompt_toolkit.layout.processors import Processor, Transformation, PasswordProcessor, ConditionalProcessor
+    from prompt_toolkit.filters import Condition
+    from prompt_toolkit.layout.dimension import Dimension
+    from prompt_toolkit.layout.menus import CompletionsMenu
+    from prompt_toolkit.widgets import TextArea
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit import print_formatted_text as _pt_print
+    from prompt_toolkit.formatted_text import ANSI as _PT_ANSI
+    try:
+        from prompt_toolkit.cursor_shapes import CursorShape
+        _STEADY_CURSOR = CursorShape.BLOCK  # Non-blinking block cursor
+    except (ImportError, AttributeError):
+        _STEADY_CURSOR = None
+    _PROMPT_TOOLKIT_AVAILABLE = True
+except ImportError:
+    _PROMPT_TOOLKIT_AVAILABLE = False
+
+    class _PTPlaceholder:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class FileHistory(_PTPlaceholder):
+        pass
+
+    class PTStyle:
+        @staticmethod
+        def from_dict(value):
+            return value
+
+    class Processor:
+        pass
+
+    class Transformation:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class PasswordProcessor(_PTPlaceholder):
+        pass
+
+    class ConditionalProcessor(_PTPlaceholder):
+        pass
+
+    class Condition:
+        def __init__(self, func=None):
+            self.func = func
+
+        def __call__(self):
+            return self.func() if self.func else False
+
+    class Dimension(_PTPlaceholder):
+        pass
+
+    class Application(_PTPlaceholder):
+        pass
+
+    class Layout(_PTPlaceholder):
+        pass
+
+    class HSplit(_PTPlaceholder):
+        pass
+
+    class Window(_PTPlaceholder):
+        pass
+
+    class FormattedTextControl(_PTPlaceholder):
+        pass
+
+    class ConditionalContainer(_PTPlaceholder):
+        pass
+
+    class CompletionsMenu(_PTPlaceholder):
+        pass
+
+    class TextArea(_PTPlaceholder):
+        pass
+
+    class _DummyKeyBindings:
+        def add(self, *args, **kwargs):
+            def _decorator(func):
+                return func
+            return _decorator
+
+    def KeyBindings():
+        return _DummyKeyBindings()
+
+    def patch_stdout(*args, **kwargs):
+        class _PatchCtx:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+        return _PatchCtx()
+
+    def _pt_print(*args, **kwargs):
+        return None
+
+    def _PT_ANSI(value):
+        return value
+
     _STEADY_CURSOR = None
 import threading
 import queue
@@ -306,7 +395,7 @@ def load_cli_config() -> Dict[str, Any]:
     # Load from file if exists
     if config_path.exists():
         try:
-            with open(config_path, "r") as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 file_config = yaml.safe_load(f) or {}
             
             _file_has_terminal_config = "terminal" in file_config
@@ -557,7 +646,15 @@ from rich.markup import escape as _escape
 from rich.panel import Panel
 from rich.text import Text as _RichText
 
-import fire
+try:
+    import fire
+except ImportError:
+    class _FireFallback:
+        @staticmethod
+        def Fire(*args, **kwargs):
+            raise ImportError("fire package is required to launch the Hermes CLI entrypoint")
+
+    fire = _FireFallback()
 
 # Import the agent and tool systems
 from run_agent import AIAgent
@@ -1267,7 +1364,7 @@ def save_config_value(key_path: str, value: any) -> bool:
         
         # Load existing config
         if config_path.exists():
-            with open(config_path, 'r') as f:
+            with open(config_path, 'r', encoding="utf-8") as f:
                 config = yaml.safe_load(f) or {}
         else:
             config = {}
@@ -1602,7 +1699,7 @@ class HermesCLI:
         return f"[{('█' * filled) + ('░' * max(0, width - filled))}]"
 
     def _get_status_bar_snapshot(self) -> Dict[str, Any]:
-        model_name = self.model or "unknown"
+        model_name = self.model or getattr(getattr(self, "agent", None), "model", None) or "unknown"
         model_short = model_name.split("/")[-1] if "/" in model_name else model_name
         if model_short.endswith(".gguf"):
             model_short = model_short[:-5]
@@ -2470,6 +2567,8 @@ class HermesCLI:
                 stream_delta_callback=self._stream_delta if self.streaming_enabled else None,
                 tool_gen_callback=self._on_tool_gen_start if self.streaming_enabled else None,
             )
+            if not self.model and getattr(self.agent, "model", None):
+                self.model = self.agent.model
             # Store reference for atexit memory provider shutdown
             global _active_agent_ref
             _active_agent_ref = self.agent

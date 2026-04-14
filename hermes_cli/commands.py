@@ -16,8 +16,26 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
-from prompt_toolkit.completion import Completer, Completion
+try:
+    from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
+    from prompt_toolkit.completion import Completer, Completion
+except ImportError:
+    class AutoSuggest:
+        pass
+
+    class Suggestion:
+        def __init__(self, text: str):
+            self.text = text
+
+    class Completer:
+        pass
+
+    class Completion:
+        def __init__(self, text: str, start_position: int = 0, display: str | None = None, display_meta: str | None = None):
+            self.text = text
+            self.start_position = start_position
+            self.display = display
+            self.display_meta = display_meta
 
 
 # ---------------------------------------------------------------------------

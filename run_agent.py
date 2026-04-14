@@ -38,8 +38,21 @@ import threading
 from types import SimpleNamespace
 import uuid
 from typing import List, Dict, Any, Optional
-from openai import OpenAI
-import fire
+try:
+    from openai import OpenAI
+except ImportError:
+    class OpenAI:  # type: ignore[no-redef]
+        def __init__(self, *args, **kwargs):
+            raise ImportError("openai package is required to create an OpenAI client")
+try:
+    import fire
+except ImportError:
+    class _FireFallback:
+        @staticmethod
+        def Fire(*args, **kwargs):
+            raise ImportError("fire package is required for the run_agent CLI entrypoint")
+
+    fire = _FireFallback()  # type: ignore[assignment]
 from datetime import datetime
 from pathlib import Path
 
@@ -4630,7 +4643,10 @@ class AIAgent:
                         # APIStatusError (4xx/5xx) always has one.
                         _is_sse_conn_err = False
                         if not _is_timeout and not _is_conn_err:
-                            from openai import APIError as _APIError
+                            try:
+                                from openai import APIError as _APIError
+                            except ImportError:
+                                _APIError = Exception
                             if isinstance(e, _APIError) and not getattr(e, "status_code", None):
                                 _err_lower_sse = str(e).lower()
                                 _SSE_CONN_PHRASES = (

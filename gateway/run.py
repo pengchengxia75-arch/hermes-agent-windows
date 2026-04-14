@@ -83,7 +83,11 @@ _hermes_home = get_hermes_home()
 
 # Load environment variables from ~/.hermes/.env first.
 # User-managed env files should override stale shell exports on restart.
-from dotenv import load_dotenv  # backward-compat for tests that monkeypatch this symbol
+try:
+    from dotenv import load_dotenv  # backward-compat for tests that monkeypatch this symbol
+except ImportError:
+    def load_dotenv(*args, **kwargs):  # type: ignore[no-redef]
+        return False
 from hermes_cli.env_loader import load_hermes_dotenv
 _env_path = _hermes_home / '.env'
 load_hermes_dotenv(hermes_home=_hermes_home, project_env=Path(__file__).resolve().parents[1] / '.env')
@@ -1555,6 +1559,13 @@ class GatewayRunner:
                 logger.warning("Telegram: python-telegram-bot not installed")
                 return None
             return TelegramAdapter(config)
+
+        elif platform == Platform.QQ:
+            from gateway.platforms.qq import QQAdapter, check_qq_requirements
+            if not check_qq_requirements(config):
+                logger.warning("QQ: aiohttp not installed or QQ_ONEBOT_URL not set")
+                return None
+            return QQAdapter(config)
         
         elif platform == Platform.DISCORD:
             from gateway.platforms.discord import DiscordAdapter, check_discord_requirements
@@ -1682,6 +1693,7 @@ class GatewayRunner:
             return False
 
         platform_env_map = {
+            Platform.QQ: "QQ_ALLOWED_USERS",
             Platform.TELEGRAM: "TELEGRAM_ALLOWED_USERS",
             Platform.DISCORD: "DISCORD_ALLOWED_USERS",
             Platform.WHATSAPP: "WHATSAPP_ALLOWED_USERS",
@@ -1696,6 +1708,7 @@ class GatewayRunner:
             Platform.WECOM: "WECOM_ALLOWED_USERS",
         }
         platform_allow_all_map = {
+            Platform.QQ: "QQ_ALLOW_ALL_USERS",
             Platform.TELEGRAM: "TELEGRAM_ALLOW_ALL_USERS",
             Platform.DISCORD: "DISCORD_ALLOW_ALL_USERS",
             Platform.WHATSAPP: "WHATSAPP_ALLOW_ALL_USERS",

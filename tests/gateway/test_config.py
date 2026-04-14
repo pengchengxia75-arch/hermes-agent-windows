@@ -67,6 +67,17 @@ class TestGetConnectedPlatforms:
         assert Platform.DISCORD not in connected
         assert Platform.SLACK not in connected
 
+    def test_returns_enabled_qq_with_bridge_url(self):
+        config = GatewayConfig(
+            platforms={
+                Platform.QQ: PlatformConfig(enabled=True, extra={"url": "http://127.0.0.1:3000"}),
+            },
+        )
+
+        connected = config.get_connected_platforms()
+
+        assert Platform.QQ in connected
+
     def test_empty_platforms(self):
         config = GatewayConfig()
         assert config.get_connected_platforms() == []
@@ -284,6 +295,12 @@ class TestHomeChannelEnvOverrides:
                 {"SMS_HOME_CHANNEL": "+15559876543", "SMS_HOME_CHANNEL_NAME": "My Phone"},
                 ("+15559876543", "My Phone"),
             ),
+            (
+                Platform.QQ,
+                PlatformConfig(enabled=True, extra={"url": "http://127.0.0.1:3000"}),
+                {"QQ_HOME_CHANNEL": "group:123456", "QQ_HOME_CHANNEL_NAME": "QQ Home"},
+                ("group:123456", "QQ Home"),
+            ),
         ]
 
         for platform, platform_config, env, expected in cases:
@@ -294,3 +311,30 @@ class TestHomeChannelEnvOverrides:
             home = config.platforms[platform].home_channel
             assert home is not None, f"{platform.value}: home_channel should not be None"
             assert (home.chat_id, home.name) == expected, platform.value
+
+
+class TestQQEnvOverrides:
+    def test_creates_qq_platform_from_onebot_env(self):
+        config = GatewayConfig()
+
+        with patch.dict(
+            os.environ,
+            {
+                "QQ_ONEBOT_URL": "ws://127.0.0.1:3001",
+                "QQ_ONEBOT_ACCESS_TOKEN": "secret-token",
+                "QQ_DEFAULT_TARGET_TYPE": "user",
+                "QQ_HOME_CHANNEL": "user:24680",
+                "QQ_HOME_CHANNEL_NAME": "Direct QQ",
+            },
+            clear=True,
+        ):
+            _apply_env_overrides(config)
+
+        qq_config = config.platforms[Platform.QQ]
+        assert qq_config.enabled is True
+        assert qq_config.extra["url"] == "ws://127.0.0.1:3001"
+        assert qq_config.extra["access_token"] == "secret-token"
+        assert qq_config.extra["default_target_type"] == "user"
+        assert qq_config.home_channel is not None
+        assert qq_config.home_channel.chat_id == "user:24680"
+        assert qq_config.home_channel.name == "Direct QQ"

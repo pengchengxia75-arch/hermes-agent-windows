@@ -96,6 +96,47 @@ class TestVerboseAndToolProgress:
         assert cli.tool_progress_mode in ("off", "new", "all", "verbose")
 
 
+class TestConfigEncoding:
+    def test_load_cli_config_reads_utf8_user_config_on_windows(self, tmp_path):
+        import importlib
+
+        config_text = """
+model:
+  default: MiniMax-M2.7
+  provider: minimax-cn
+display:
+  compact: false
+# 中文注释 — UTF-8
+"""
+        (tmp_path / "config.yaml").write_text(config_text.strip() + "\n", encoding="utf-8")
+
+        prompt_toolkit_stubs = {
+            "prompt_toolkit": MagicMock(),
+            "prompt_toolkit.history": MagicMock(),
+            "prompt_toolkit.styles": MagicMock(),
+            "prompt_toolkit.patch_stdout": MagicMock(),
+            "prompt_toolkit.application": MagicMock(),
+            "prompt_toolkit.layout": MagicMock(),
+            "prompt_toolkit.layout.processors": MagicMock(),
+            "prompt_toolkit.filters": MagicMock(),
+            "prompt_toolkit.layout.dimension": MagicMock(),
+            "prompt_toolkit.layout.menus": MagicMock(),
+            "prompt_toolkit.widgets": MagicMock(),
+            "prompt_toolkit.key_binding": MagicMock(),
+            "prompt_toolkit.completion": MagicMock(),
+            "prompt_toolkit.formatted_text": MagicMock(),
+            "prompt_toolkit.auto_suggest": MagicMock(),
+        }
+
+        with patch.dict(sys.modules, prompt_toolkit_stubs), \
+             patch.dict("os.environ", {"HERMES_HOME": str(tmp_path)}, clear=False):
+            import cli as _cli_mod
+
+            _cli_mod = importlib.reload(_cli_mod)
+            assert _cli_mod.CLI_CONFIG["model"]["default"] == "MiniMax-M2.7"
+            assert _cli_mod.CLI_CONFIG["model"]["provider"] == "minimax-cn"
+
+
 class TestBusyInputMode:
     def test_default_busy_input_mode_is_interrupt(self):
         cli = _make_cli()

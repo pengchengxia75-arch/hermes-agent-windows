@@ -87,16 +87,16 @@ def _apply_doctor_tool_availability_overrides(available: list[str], unavailable:
 
 
 def check_ok(text: str, detail: str = ""):
-    print(f"  {color('✓', Colors.GREEN)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
+    print(f"  {color('[OK]', Colors.GREEN)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
 
 def check_warn(text: str, detail: str = ""):
-    print(f"  {color('⚠', Colors.YELLOW)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
+    print(f"  {color('[WARN]', Colors.YELLOW)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
 
 def check_fail(text: str, detail: str = ""):
-    print(f"  {color('✗', Colors.RED)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
+    print(f"  {color('[FAIL]', Colors.RED)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
 
 def check_info(text: str):
-    print(f"    {color('→', Colors.CYAN)} {text}")
+    print(f"    {color('[INFO]', Colors.CYAN)} {text}")
 
 
 def _check_gateway_service_linger(issues: list[str]) -> None:
@@ -119,41 +119,9 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
         return
 
     print()
-    print(color("◆ Gateway Service", Colors.CYAN, Colors.BOLD))
-
-    linger_enabled, linger_detail = get_systemd_linger_status()
-    if linger_enabled is True:
-        check_ok("Systemd linger enabled", "(gateway service survives logout)")
-    elif linger_enabled is False:
-        check_warn("Systemd linger disabled", "(gateway may stop after logout)")
-        check_info("Run: sudo loginctl enable-linger $USER")
-        issues.append("Enable linger for the gateway user service: sudo loginctl enable-linger $USER")
-    else:
-        check_warn("Could not verify systemd linger", f"({linger_detail})")
-
-
-def run_doctor(args):
-    """Run diagnostic checks."""
-    should_fix = getattr(args, 'fix', False)
-
-    # Doctor runs from the interactive CLI, so CLI-gated tool availability
-    # checks (like cronjob management) should see the same context as `hermes`.
-    os.environ.setdefault("HERMES_INTERACTIVE", "1")
-    
-    issues = []
-    manual_issues = []  # issues that can't be auto-fixed
-    fixed_count = 0
-    
-    print()
-    print(color("┌─────────────────────────────────────────────────────────┐", Colors.CYAN))
-    print(color("│                 🩺 Hermes Doctor                        │", Colors.CYAN))
-    print(color("└─────────────────────────────────────────────────────────┘", Colors.CYAN))
-    
-    # =========================================================================
-    # Check: Python version
-    # =========================================================================
-    print()
-    print(color("◆ Python Environment", Colors.CYAN, Colors.BOLD))
+    print(color("=" * 59, Colors.CYAN))
+    print(color("                   Hermes Doctor", Colors.CYAN))
+    print(color("=" * 59, Colors.CYAN))
     
     py_version = sys.version_info
     if py_version >= (3, 11):
@@ -384,6 +352,30 @@ def run_doctor(args):
         else:
             check_warn(f"{_DHH} not found", "(will be created on first use)")
     
+    # Windows-specific runtime checks
+    if os.name == "nt":
+        print()
+        print(color("Windows Runtime", Colors.CYAN, Colors.BOLD))
+
+        git_bash = os.getenv("HERMES_GIT_BASH_PATH", "").strip()
+        if git_bash and Path(git_bash).exists():
+            check_ok("HERMES_GIT_BASH_PATH", f"({git_bash})")
+        elif git_bash:
+            check_warn("HERMES_GIT_BASH_PATH set but file missing", f"({git_bash})")
+            issues.append("Fix HERMES_GIT_BASH_PATH to point to Git Bash")
+        else:
+            check_warn("HERMES_GIT_BASH_PATH not set")
+            check_info("Set it to your Git Bash path, e.g. C:\\Program Files\\Git\\bin\\bash.exe")
+            issues.append("Set HERMES_GIT_BASH_PATH for local terminal compatibility")
+
+        hermes_cmd = shutil.which("hermes")
+        if hermes_cmd:
+            check_ok("hermes on PATH", f"({hermes_cmd})")
+        else:
+            check_warn("hermes not on PATH")
+            check_info("Open a new PowerShell window or add venv\\Scripts to your user PATH")
+            issues.append("Add Hermes venv Scripts directory to PATH")
+
     # Check expected subdirectories
     expected_subdirs = ["cron", "sessions", "logs", "skills", "memories"]
     for subdir_name in expected_subdirs:
@@ -503,7 +495,7 @@ def run_doctor(args):
         check_ok("ripgrep (rg)", "(faster file search)")
     else:
         check_warn("ripgrep (rg) not found", "(file search uses grep fallback)")
-        check_info("Install for faster search: sudo apt install ripgrep")
+        check_info("Install for faster search: winget install BurntSushi.ripgrep.MSVC" if os.name == 'nt' else "Install for faster search: sudo apt install ripgrep")
     
     # Docker (optional)
     terminal_env = os.getenv("TERMINAL_ENV", "local")
@@ -867,7 +859,7 @@ def run_doctor(args):
             mem0_key = mem0_cfg.get("api_key", "")
             if mem0_key:
                 check_ok("Mem0 API key configured")
-                check_info(f"user_id={mem0_cfg.get('user_id', '?')}  agent_id={mem0_cfg.get('agent_id', '?')}")
+                check_info(f"user_id={mem0_cfg.get('user_id', 'Status')}  agent_id={mem0_cfg.get('agent_id', 'Status')}")
             else:
                 check_fail("Mem0 API key not set", "(set MEM0_API_KEY in .env or run hermes memory setup)")
                 issues.append("Mem0 is set as memory provider but API key is missing")

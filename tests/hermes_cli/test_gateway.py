@@ -1,4 +1,4 @@
-"""Tests for hermes_cli.gateway."""
+﻿"""Tests for hermes_cli.gateway."""
 
 import signal
 from types import SimpleNamespace
@@ -188,7 +188,7 @@ class TestWaitForGatewayExit:
         gateway._wait_for_gateway_exit(timeout=1.0, force_after=0.5)
 
     def test_returns_when_process_exits_gracefully(self, monkeypatch):
-        """Process exits after a couple of polls — no SIGKILL needed."""
+        """Process exits after a couple of polls 鈥?no SIGKILL needed."""
         poll_count = 0
 
         def mock_get_running_pid():
@@ -250,5 +250,225 @@ class TestWaitForGatewayExit:
         monkeypatch.setattr("gateway.status.get_running_pid", lambda: 99)
         monkeypatch.setattr("os.kill", mock_kill)
 
-        # Should not raise — ProcessLookupError means it's already gone.
+        # Should not raise 鈥?ProcessLookupError means it's already gone.
         gateway._wait_for_gateway_exit(timeout=10.0, force_after=2.0)
+
+
+def test_status_running_on_windows_shows_foreground_hint(monkeypatch, capsys):
+    monkeypatch.setattr(gateway, "is_linux", lambda: False)
+    monkeypatch.setattr(gateway, "is_macos", lambda: False)
+    monkeypatch.setattr(gateway, "is_windows", lambda: True)
+    monkeypatch.setattr(gateway, "find_gateway_pids", lambda exclude_pids=None: [1234])
+
+    gateway.gateway_command(SimpleNamespace(gateway_command="status", deep=False))
+
+    out = capsys.readouterr().out
+    assert "Gateway is running" in out
+    assert "Run directly on Windows:" in out
+    assert "hermes gateway          # Run in foreground" in out
+    assert "hermes gateway install" not in out
+
+
+def test_status_not_running_on_windows_omits_service_install_hint(monkeypatch, capsys):
+    monkeypatch.setattr(gateway, "is_linux", lambda: False)
+    monkeypatch.setattr(gateway, "is_macos", lambda: False)
+    monkeypatch.setattr(gateway, "is_windows", lambda: True)
+    monkeypatch.setattr(gateway, "find_gateway_pids", lambda exclude_pids=None: [])
+    monkeypatch.setattr(gateway, "_runtime_health_lines", lambda: [])
+
+    gateway.gateway_command(SimpleNamespace(gateway_command="status", deep=False))
+
+    out = capsys.readouterr().out
+    assert "Gateway is not running" in out
+    assert "hermes gateway          # Run in foreground" in out
+    assert "hermes gateway install" not in out
+    assert "sudo hermes gateway install --system" not in out
+
+
+def test_feishu_platform_label_and_vars_present():
+    feishu_platform = next(p for p in gateway._PLATFORMS if p["key"] == "feishu")
+    assert feishu_platform["label"] == "Feishu / Lark / 飞书"
+    var_names = [v["name"] for v in feishu_platform["vars"]]
+    assert "FEISHU_APP_ID" in var_names
+    assert "FEISHU_APP_SECRET" in var_names
+    assert "FEISHU_CONNECTION_MODE" in var_names
+
+
+def test_wecom_platform_label_and_vars_present():
+    wecom_platform = next(p for p in gateway._PLATFORMS if p["key"] == "wecom")
+    assert wecom_platform["label"] == "WeCom (Enterprise WeChat) / 企业微信"
+    var_names = [v["name"] for v in wecom_platform["vars"]]
+    assert "WECOM_BOT_ID" in var_names
+    assert "WECOM_SECRET" in var_names
+    assert "WECOM_ALLOWED_USERS" in var_names
+
+
+def test_qq_platform_label_and_vars_present():
+    qq_platform = next(p for p in gateway._PLATFORMS if p["key"] == "qq")
+    assert qq_platform["label"] == "QQ / OneBot / QQ机器人"
+    var_names = [v["name"] for v in qq_platform["vars"]]
+    assert "QQ_ONEBOT_URL" in var_names
+    assert "QQ_ONEBOT_ACCESS_TOKEN" in var_names
+    assert "QQ_HOME_CHANNEL" in var_names
+
+
+def test_setup_standard_platform_saves_feishu_values(monkeypatch):
+    platform = next(p for p in gateway._PLATFORMS if p["key"] == "feishu")
+    prompts = iter(["cli_app", "secret_app", "feishu", "websocket", "ou_alice", "oc_home"])
+    saved: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(gateway, "get_env_value", lambda name: "")
+    monkeypatch.setattr(gateway, "prompt", lambda *args, **kwargs: next(prompts))
+    monkeypatch.setattr(gateway, "prompt_yes_no", lambda *args, **kwargs: True)
+    monkeypatch.setattr(gateway, "save_env_value", lambda name, value: saved.append((name, value)))
+
+    gateway._setup_standard_platform(platform)
+
+    assert ("FEISHU_APP_ID", "cli_app") in saved
+    assert ("FEISHU_APP_SECRET", "secret_app") in saved
+    assert ("FEISHU_CONNECTION_MODE", "websocket") in saved
+    assert ("FEISHU_ALLOWED_USERS", "ou_alice") in saved
+
+
+def test_setup_standard_platform_saves_wecom_values(monkeypatch):
+    platform = next(p for p in gateway._PLATFORMS if p["key"] == "wecom")
+    prompts = iter(["bot_123", "secret_456", "user_a,user_b", "group_home"])
+    saved: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(gateway, "get_env_value", lambda name: "")
+    monkeypatch.setattr(gateway, "prompt", lambda *args, **kwargs: next(prompts))
+    monkeypatch.setattr(gateway, "prompt_yes_no", lambda *args, **kwargs: True)
+    monkeypatch.setattr(gateway, "save_env_value", lambda name, value: saved.append((name, value)))
+
+    gateway._setup_standard_platform(platform)
+
+    assert ("WECOM_BOT_ID", "bot_123") in saved
+    assert ("WECOM_SECRET", "secret_456") in saved
+    assert ("WECOM_ALLOWED_USERS", "user_a,user_b") in saved
+    assert ("WECOM_HOME_CHANNEL", "group_home") in saved
+
+
+def test_setup_standard_platform_saves_qq_values(monkeypatch):
+    platform = next(p for p in gateway._PLATFORMS if p["key"] == "qq")
+    prompts = iter(["ws://127.0.0.1:3001", "bridge_token", "group_admin,user_owner", "group:123456"])
+    saved: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(gateway, "get_env_value", lambda name: "")
+    monkeypatch.setattr(gateway, "prompt", lambda *args, **kwargs: next(prompts))
+    monkeypatch.setattr(gateway, "prompt_yes_no", lambda *args, **kwargs: True)
+    monkeypatch.setattr(gateway, "save_env_value", lambda name, value: saved.append((name, value)))
+
+    gateway._setup_standard_platform(platform)
+
+    assert ("QQ_ONEBOT_URL", "ws://127.0.0.1:3001") in saved
+    assert ("QQ_ONEBOT_ACCESS_TOKEN", "bridge_token") in saved
+    assert ("QQ_ALLOWED_USERS", "group_admin,user_owner") in saved
+    assert ("QQ_HOME_CHANNEL", "group:123456") in saved
+
+
+def test_gateway_setup_on_windows_runs_feishu_flow_and_prints_foreground_hint(monkeypatch, capsys):
+    saved = {}
+    feishu_index = next(i for i, p in enumerate(gateway._PLATFORMS) if p["key"] == "feishu")
+    choices = iter([feishu_index, len(gateway._PLATFORMS)])
+    calls = []
+
+    monkeypatch.setattr(gateway, "is_managed", lambda: False)
+    monkeypatch.setattr(gateway, "is_linux", lambda: False)
+    monkeypatch.setattr(gateway, "is_macos", lambda: False)
+    monkeypatch.setattr(gateway, "is_windows", lambda: True)
+    monkeypatch.setattr(gateway, "_is_service_installed", lambda: False)
+    monkeypatch.setattr(gateway, "_is_service_running", lambda: False)
+    monkeypatch.setattr(gateway, "print_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(gateway, "print_info", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "print_success", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "print_warning", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "print_error", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "color", lambda text, *_args, **_kwargs: text)
+    monkeypatch.setattr(gateway, "prompt_choice", lambda *args, **kwargs: next(choices))
+    monkeypatch.setattr(gateway, "prompt_yes_no", lambda *args, **kwargs: False)
+    monkeypatch.setattr(gateway, "get_env_value", lambda name: saved.get(name, ""))
+
+    def fake_setup(platform):
+        calls.append(platform["key"])
+        saved[platform["token_var"]] = "configured"
+
+    monkeypatch.setattr(gateway, "_setup_standard_platform", fake_setup)
+
+    gateway.gateway_setup()
+
+    out = capsys.readouterr().out
+    assert calls == ["feishu"]
+    assert "Gateway service is not installed yet." in out
+    assert "Run in foreground: hermes gateway" in out
+
+
+def test_gateway_setup_on_windows_runs_wecom_flow_and_prints_foreground_hint(monkeypatch, capsys):
+    saved = {}
+    wecom_index = next(i for i, p in enumerate(gateway._PLATFORMS) if p["key"] == "wecom")
+    choices = iter([wecom_index, len(gateway._PLATFORMS)])
+    calls = []
+
+    monkeypatch.setattr(gateway, "is_managed", lambda: False)
+    monkeypatch.setattr(gateway, "is_linux", lambda: False)
+    monkeypatch.setattr(gateway, "is_macos", lambda: False)
+    monkeypatch.setattr(gateway, "is_windows", lambda: True)
+    monkeypatch.setattr(gateway, "_is_service_installed", lambda: False)
+    monkeypatch.setattr(gateway, "_is_service_running", lambda: False)
+    monkeypatch.setattr(gateway, "print_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(gateway, "print_info", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "print_success", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "print_warning", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "print_error", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "color", lambda text, *_args, **_kwargs: text)
+    monkeypatch.setattr(gateway, "prompt_choice", lambda *args, **kwargs: next(choices))
+    monkeypatch.setattr(gateway, "prompt_yes_no", lambda *args, **kwargs: False)
+    monkeypatch.setattr(gateway, "get_env_value", lambda name: saved.get(name, ""))
+
+    def fake_setup(platform):
+        calls.append(platform["key"])
+        saved[platform["token_var"]] = "configured"
+
+    monkeypatch.setattr(gateway, "_setup_standard_platform", fake_setup)
+
+    gateway.gateway_setup()
+
+    out = capsys.readouterr().out
+    assert calls == ["wecom"]
+    assert "Gateway service is not installed yet." in out
+    assert "Run in foreground: hermes gateway" in out
+
+
+def test_gateway_setup_on_windows_runs_qq_flow_and_prints_foreground_hint(monkeypatch, capsys):
+    saved = {}
+    qq_index = next(i for i, p in enumerate(gateway._PLATFORMS) if p["key"] == "qq")
+    choices = iter([qq_index, len(gateway._PLATFORMS)])
+    calls = []
+
+    monkeypatch.setattr(gateway, "is_managed", lambda: False)
+    monkeypatch.setattr(gateway, "is_linux", lambda: False)
+    monkeypatch.setattr(gateway, "is_macos", lambda: False)
+    monkeypatch.setattr(gateway, "is_windows", lambda: True)
+    monkeypatch.setattr(gateway, "_is_service_installed", lambda: False)
+    monkeypatch.setattr(gateway, "_is_service_running", lambda: False)
+    monkeypatch.setattr(gateway, "print_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(gateway, "print_info", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "print_success", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "print_warning", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "print_error", lambda *args, **kwargs: print(*args))
+    monkeypatch.setattr(gateway, "color", lambda text, *_args, **_kwargs: text)
+    monkeypatch.setattr(gateway, "prompt_choice", lambda *args, **kwargs: next(choices))
+    monkeypatch.setattr(gateway, "prompt_yes_no", lambda *args, **kwargs: False)
+    monkeypatch.setattr(gateway, "get_env_value", lambda name: saved.get(name, ""))
+
+    def fake_setup(platform):
+        calls.append(platform["key"])
+        saved[platform["token_var"]] = "configured"
+
+    monkeypatch.setattr(gateway, "_setup_standard_platform", fake_setup)
+
+    gateway.gateway_setup()
+
+    out = capsys.readouterr().out
+    assert calls == ["qq"]
+    assert "Gateway service is not installed yet." in out
+    assert "Run in foreground: hermes gateway" in out

@@ -5,7 +5,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):  # type: ignore[no-redef]
+        return False
 
 
 def _load_dotenv_with_fallback(path: Path, *, override: bool) -> None:

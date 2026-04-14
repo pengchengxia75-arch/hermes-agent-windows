@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 _TELEGRAM_TOPIC_TARGET_RE = re.compile(r"^\s*(-?\d+)(?::(\d+))?\s*$")
 _FEISHU_TARGET_RE = re.compile(r"^\s*((?:oc|ou|on|chat|open)_[-A-Za-z0-9]+)(?::([-A-Za-z0-9_]+))?\s*$")
+_QQ_TARGET_RE = re.compile(r"^\s*(group|user|private):([0-9A-Za-z_-]+)\s*$", re.IGNORECASE)
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 _VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".3gp"}
 _AUDIO_EXTS = {".ogg", ".opus", ".mp3", ".wav", ".m4a"}
@@ -65,7 +66,7 @@ SEND_MESSAGE_SCHEMA = {
             },
             "target": {
                 "type": "string",
-                "description": "Delivery target. Format: 'platform' (uses home channel), 'platform:#channel-name', 'platform:chat_id', or Telegram topic 'telegram:chat_id:thread_id'. Examples: 'telegram', 'telegram:-1001234567890:17585', 'discord:#bot-home', 'slack:#engineering', 'signal:+15551234567'"
+                "description": "Delivery target. Format: 'platform' (uses home channel), 'platform:#channel-name', 'platform:chat_id', or Telegram topic 'telegram:chat_id:thread_id'. QQ supports 'qq:group:123456' or 'qq:user:123456'. Examples: 'telegram', 'telegram:-1001234567890:17585', 'discord:#bot-home', 'slack:#engineering', 'signal:+15551234567', 'qq:group:123456'"
             },
             "message": {
                 "type": "string",
@@ -143,6 +144,7 @@ def _handle_send(args):
         return json.dumps(_error(f"Failed to load gateway config: {e}"))
 
     platform_map = {
+        "qq": Platform.QQ,
         "telegram": Platform.TELEGRAM,
         "discord": Platform.DISCORD,
         "slack": Platform.SLACK,
@@ -226,6 +228,12 @@ def _parse_target_ref(platform_name: str, target_ref: str):
         match = _TELEGRAM_TOPIC_TARGET_RE.fullmatch(target_ref)
         if match:
             return match.group(1), match.group(2), True
+    if platform_name == "qq":
+        match = _QQ_TARGET_RE.fullmatch(target_ref)
+        if match:
+            prefix = match.group(1).lower()
+            prefix = "user" if prefix == "private" else prefix
+            return f"{prefix}:{match.group(2)}", None, True
     if platform_name == "feishu":
         match = _FEISHU_TARGET_RE.fullmatch(target_ref)
         if match:
@@ -311,6 +319,7 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
     from gateway.platforms.telegram import TelegramAdapter
     from gateway.platforms.discord import DiscordAdapter
     from gateway.platforms.slack import SlackAdapter
+    from gateway.platforms.qq import QQAdapter
 
     # Feishu adapter import is optional (requires lark-oapi)
     try:
@@ -323,6 +332,7 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
 
     # Platform message length limits (from adapter class attributes)
     _MAX_LENGTHS = {
+        Platform.QQ: QQAdapter.MAX_MESSAGE_LENGTH,
         Platform.TELEGRAM: TelegramAdapter.MAX_MESSAGE_LENGTH,
         Platform.DISCORD: DiscordAdapter.MAX_MESSAGE_LENGTH,
         Platform.SLACK: SlackAdapter.MAX_MESSAGE_LENGTH,
@@ -374,6 +384,8 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
     for chunk in chunks:
         if platform == Platform.DISCORD:
             result = await _send_discord(pconfig.token, chat_id, chunk)
+        elif platform == Platform.QQ:
+            result = await _send_qq(pconfig.extra, chat_id, chunk)
         elif platform == Platform.SLACK:
             result = await _send_slack(pconfig.token, chat_id, chunk)
         elif platform == Platform.WHATSAPP:
@@ -575,6 +587,66 @@ async def _send_slack(token, chat_id, message):
                 return _error(f"Slack API error: {data.get('error', 'unknown')}")
     except Exception as e:
         return _error(f"Slack send failed: {e}")
+
+
+async def _send_qq(extra, chat_id, message):
+    """Send via a OneBot-compatible QQ bridge."""
+    try:
+        import aiohttp
+    except ImportError:
+        return {"error": "aiohttp not installed. Run: pip install aiohttp"}
+
+    bridge_url = (
+        (extra or {}).get("url")
+        or os.getenv("QQ_ONEBOT_URL", "")
+        or os.getenv("QQ_ONEBOT_HTTP_URL", "")
+        or os.getenv("QQ_ONEBOT_WS_URL", "")
+    ).strip()
+    if not bridge_url:
+        return {"error": "QQ not configured (QQ_ONEBOT_URL required)"}
+
+    access_token = ((extra or {}).get("access_token") or os.getenv("QQ_ONEBOT_ACCESS_TOKEN", "")).strip()
+
+    if bridge_url.startswith("ws://"):
+        bridge_url = "http://" + bridge_url[len("ws://"):]
+    elif bridge_url.startswith("wss://"):
+        bridge_url = "https://" + bridge_url[len("wss://"):]
+    bridge_url = bridge_url.rstrip("/")
+
+    target = str(chat_id or "").strip()
+    target_type = (extra or {}).get("default_target_type", "group")
+    target_id = target
+    if ":" in target:
+        maybe_type, maybe_id = target.split(":", 1)
+        if maybe_type.lower() in {"group", "user", "private"}:
+            target_type = "user" if maybe_type.lower() == "private" else maybe_type.lower()
+            target_id = maybe_id
+
+    endpoint = "send_group_msg" if target_type == "group" else "send_private_msg"
+    payload = {"message": message}
+    if target_type == "group":
+        payload["group_id"] = int(target_id) if target_id.isdigit() else target_id
+    else:
+        payload["user_id"] = int(target_id) if target_id.isdigit() else target_id
+
+    headers = {"Content-Type": "application/json"}
+    if access_token:
+        headers["Authorization"] = f"Bearer {access_token}"
+
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+            async with session.post(f"{bridge_url}/{endpoint}", headers=headers, json=payload) as resp:
+                data = await resp.json(content_type=None)
+                if resp.status >= 400:
+                    return _error(f"QQ bridge error ({resp.status}): {data}")
+                if data.get("status") not in (None, "ok"):
+                    return _error(f"QQ bridge send failed: {data}")
+                message_id = None
+                if isinstance(data.get("data"), dict):
+                    message_id = data["data"].get("message_id")
+                return {"success": True, "platform": "qq", "chat_id": chat_id, "message_id": message_id}
+    except Exception as e:
+        return _error(f"QQ send failed: {e}")
 
 
 async def _send_whatsapp(extra, chat_id, message):
