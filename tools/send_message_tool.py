@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 _TELEGRAM_TOPIC_TARGET_RE = re.compile(r"^\s*(-?\d+)(?::(\d+))?\s*$")
 _FEISHU_TARGET_RE = re.compile(r"^\s*((?:oc|ou|on|chat|open)_[-A-Za-z0-9]+)(?::([-A-Za-z0-9_]+))?\s*$")
-_QQ_TARGET_RE = re.compile(r"^\s*(group|user|private):([0-9A-Za-z_-]+)\s*$", re.IGNORECASE)
+_WEIXIN_TARGET_RE = re.compile(r"^\s*((?:wxid|gh|v\d+|wm|wb)_[A-Za-z0-9_-]+|[A-Za-z0-9._-]+@chatroom|filehelper)\s*$")
+# Discord snowflake IDs are numeric, same regex pattern as Telegram topic targets.
+_NUMERIC_TOPIC_RE = _TELEGRAM_TOPIC_TARGET_RE
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 _VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".3gp"}
 _AUDIO_EXTS = {".ogg", ".opus", ".mp3", ".wav", ".m4a"}
@@ -66,7 +68,7 @@ SEND_MESSAGE_SCHEMA = {
             },
             "target": {
                 "type": "string",
-                "description": "Delivery target. Format: 'platform' (uses home channel), 'platform:#channel-name', 'platform:chat_id', or Telegram topic 'telegram:chat_id:thread_id'. QQ supports 'qq:group:123456' or 'qq:user:123456'. Examples: 'telegram', 'telegram:-1001234567890:17585', 'discord:#bot-home', 'slack:#engineering', 'signal:+15551234567', 'qq:group:123456'"
+                "description": "Delivery target. Format: 'platform' (uses home channel), 'platform:#channel-name', 'platform:chat_id', or 'platform:chat_id:thread_id' for Telegram topics and Discord threads. Examples: 'telegram', 'telegram:-1001234567890:17585', 'discord:999888777:555444333', 'discord:#bot-home', 'slack:#engineering', 'signal:+155****4567'"
             },
             "message": {
                 "type": "string",
@@ -144,18 +146,21 @@ def _handle_send(args):
         return json.dumps(_error(f"Failed to load gateway config: {e}"))
 
     platform_map = {
-        "qq": Platform.QQ,
         "telegram": Platform.TELEGRAM,
         "discord": Platform.DISCORD,
         "slack": Platform.SLACK,
         "whatsapp": Platform.WHATSAPP,
         "signal": Platform.SIGNAL,
+        "bluebubbles": Platform.BLUEBUBBLES,
+        "qqbot": Platform.QQBOT,
         "matrix": Platform.MATRIX,
         "mattermost": Platform.MATTERMOST,
         "homeassistant": Platform.HOMEASSISTANT,
         "dingtalk": Platform.DINGTALK,
         "feishu": Platform.FEISHU,
         "wecom": Platform.WECOM,
+        "wecom_callback": Platform.WECOM_CALLBACK,
+        "weixin": Platform.WEIXIN,
         "email": Platform.EMAIL,
         "sms": Platform.SMS,
     }
@@ -209,7 +214,8 @@ def _handle_send(args):
         if isinstance(result, dict) and result.get("success") and mirror_text:
             try:
                 from gateway.mirror import mirror_to_session
-                source_label = os.getenv("HERMES_SESSION_PLATFORM", "cli")
+                from gateway.session_context import get_session_env
+                source_label = get_session_env("HERMES_SESSION_PLATFORM", "cli")
                 if mirror_to_session(platform_name, chat_id, mirror_text, source_label=source_label, thread_id=thread_id):
                     result["mirrored"] = True
             except Exception:
@@ -228,16 +234,18 @@ def _parse_target_ref(platform_name: str, target_ref: str):
         match = _TELEGRAM_TOPIC_TARGET_RE.fullmatch(target_ref)
         if match:
             return match.group(1), match.group(2), True
-    if platform_name == "qq":
-        match = _QQ_TARGET_RE.fullmatch(target_ref)
-        if match:
-            prefix = match.group(1).lower()
-            prefix = "user" if prefix == "private" else prefix
-            return f"{prefix}:{match.group(2)}", None, True
     if platform_name == "feishu":
         match = _FEISHU_TARGET_RE.fullmatch(target_ref)
         if match:
             return match.group(1), match.group(2), True
+    if platform_name == "discord":
+        match = _NUMERIC_TOPIC_RE.fullmatch(target_ref)
+        if match:
+            return match.group(1), match.group(2), True
+    if platform_name == "weixin":
+        match = _WEIXIN_TARGET_RE.fullmatch(target_ref)
+        if match:
+            return match.group(1), None, True
     if target_ref.lstrip("-").isdigit():
         return target_ref, None, True
     return None, None, False
@@ -315,11 +323,10 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
     (preserves code-block boundaries, adds part indicators).
     """
     from gateway.config import Platform
-    from gateway.platforms.base import BasePlatformAdapter
+    from gateway.platforms.base import BasePlatformAdapter, utf16_len
     from gateway.platforms.telegram import TelegramAdapter
     from gateway.platforms.discord import DiscordAdapter
     from gateway.platforms.slack import SlackAdapter
-    from gateway.platforms.qq import QQAdapter
 
     # Feishu adapter import is optional (requires lark-oapi)
     try:
@@ -330,9 +337,15 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
 
     media_files = media_files or []
 
+    if platform == Platform.SLACK and message:
+        try:
+            slack_adapter = SlackAdapter.__new__(SlackAdapter)
+            message = slack_adapter.format_message(message)
+        except Exception:
+            logger.debug("Failed to apply Slack mrkdwn formatting in _send_to_platform", exc_info=True)
+
     # Platform message length limits (from adapter class attributes)
     _MAX_LENGTHS = {
-        Platform.QQ: QQAdapter.MAX_MESSAGE_LENGTH,
         Platform.TELEGRAM: TelegramAdapter.MAX_MESSAGE_LENGTH,
         Platform.DISCORD: DiscordAdapter.MAX_MESSAGE_LENGTH,
         Platform.SLACK: SlackAdapter.MAX_MESSAGE_LENGTH,
@@ -342,9 +355,11 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
 
     # Smart-chunk the message to fit within platform limits.
     # For short messages or platforms without a known limit this is a no-op.
+    # Telegram measures length in UTF-16 code units, not Unicode codepoints.
     max_len = _MAX_LENGTHS.get(platform)
     if max_len:
-        chunks = BasePlatformAdapter.truncate_message(message, max_len)
+        _len_fn = utf16_len if platform == Platform.TELEGRAM else None
+        chunks = BasePlatformAdapter.truncate_message(message, max_len, len_fn=_len_fn)
     else:
         chunks = [message]
 
@@ -365,6 +380,10 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
             last_result = result
         return last_result
 
+    # --- Weixin: use the native one-shot adapter helper for text + media ---
+    if platform == Platform.WEIXIN:
+        return await _send_weixin(pconfig, chat_id, message, media_files=media_files)
+
     # --- Non-Telegram platforms ---
     if media_files and not message.strip():
         return {
@@ -383,9 +402,7 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
     last_result = None
     for chunk in chunks:
         if platform == Platform.DISCORD:
-            result = await _send_discord(pconfig.token, chat_id, chunk)
-        elif platform == Platform.QQ:
-            result = await _send_qq(pconfig.extra, chat_id, chunk)
+            result = await _send_discord(pconfig.token, chat_id, chunk, thread_id=thread_id)
         elif platform == Platform.SLACK:
             result = await _send_slack(pconfig.token, chat_id, chunk)
         elif platform == Platform.WHATSAPP:
@@ -408,6 +425,10 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
             result = await _send_feishu(pconfig, chat_id, chunk, thread_id=thread_id)
         elif platform == Platform.WECOM:
             result = await _send_wecom(pconfig.extra, chat_id, chunk)
+        elif platform == Platform.BLUEBUBBLES:
+            result = await _send_bluebubbles(pconfig.extra, chat_id, chunk)
+        elif platform == Platform.QQBOT:
+            result = await _send_qqbot(pconfig, chat_id, chunk)
         else:
             result = {"error": f"Direct sending not yet implemented for {platform.value}"}
 
@@ -547,20 +568,30 @@ async def _send_telegram(token, chat_id, message, media_files=None, thread_id=No
         return _error(f"Telegram send failed: {e}")
 
 
-async def _send_discord(token, chat_id, message):
+async def _send_discord(token, chat_id, message, thread_id=None):
     """Send a single message via Discord REST API (no websocket client needed).
 
     Chunking is handled by _send_to_platform() before this is called.
+
+    When thread_id is provided, the message is sent directly to that thread
+    via the /channels/{thread_id}/messages endpoint.
     """
     try:
         import aiohttp
     except ImportError:
         return {"error": "aiohttp not installed. Run: pip install aiohttp"}
     try:
-        url = f"https://discord.com/api/v10/channels/{chat_id}/messages"
+        from gateway.platforms.base import resolve_proxy_url, proxy_kwargs_for_aiohttp
+        _proxy = resolve_proxy_url(platform_env_var="DISCORD_PROXY")
+        _sess_kw, _req_kw = proxy_kwargs_for_aiohttp(_proxy)
+        # Thread endpoint: Discord threads are channels; send directly to the thread ID.
+        if thread_id:
+            url = f"https://discord.com/api/v10/channels/{thread_id}/messages"
+        else:
+            url = f"https://discord.com/api/v10/channels/{chat_id}/messages"
         headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-            async with session.post(url, headers=headers, json={"content": message}) as resp:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30), **_sess_kw) as session:
+            async with session.post(url, headers=headers, json={"content": message}, **_req_kw) as resp:
                 if resp.status not in (200, 201):
                     body = await resp.text()
                     return _error(f"Discord API error ({resp.status}): {body}")
@@ -577,76 +608,20 @@ async def _send_slack(token, chat_id, message):
     except ImportError:
         return {"error": "aiohttp not installed. Run: pip install aiohttp"}
     try:
+        from gateway.platforms.base import resolve_proxy_url, proxy_kwargs_for_aiohttp
+        _proxy = resolve_proxy_url()
+        _sess_kw, _req_kw = proxy_kwargs_for_aiohttp(_proxy)
         url = "https://slack.com/api/chat.postMessage"
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-            async with session.post(url, headers=headers, json={"channel": chat_id, "text": message}) as resp:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30), **_sess_kw) as session:
+            payload = {"channel": chat_id, "text": message, "mrkdwn": True}
+            async with session.post(url, headers=headers, json=payload, **_req_kw) as resp:
                 data = await resp.json()
                 if data.get("ok"):
                     return {"success": True, "platform": "slack", "chat_id": chat_id, "message_id": data.get("ts")}
                 return _error(f"Slack API error: {data.get('error', 'unknown')}")
     except Exception as e:
         return _error(f"Slack send failed: {e}")
-
-
-async def _send_qq(extra, chat_id, message):
-    """Send via a OneBot-compatible QQ bridge."""
-    try:
-        import aiohttp
-    except ImportError:
-        return {"error": "aiohttp not installed. Run: pip install aiohttp"}
-
-    bridge_url = (
-        (extra or {}).get("url")
-        or os.getenv("QQ_ONEBOT_URL", "")
-        or os.getenv("QQ_ONEBOT_HTTP_URL", "")
-        or os.getenv("QQ_ONEBOT_WS_URL", "")
-    ).strip()
-    if not bridge_url:
-        return {"error": "QQ not configured (QQ_ONEBOT_URL required)"}
-
-    access_token = ((extra or {}).get("access_token") or os.getenv("QQ_ONEBOT_ACCESS_TOKEN", "")).strip()
-
-    if bridge_url.startswith("ws://"):
-        bridge_url = "http://" + bridge_url[len("ws://"):]
-    elif bridge_url.startswith("wss://"):
-        bridge_url = "https://" + bridge_url[len("wss://"):]
-    bridge_url = bridge_url.rstrip("/")
-
-    target = str(chat_id or "").strip()
-    target_type = (extra or {}).get("default_target_type", "group")
-    target_id = target
-    if ":" in target:
-        maybe_type, maybe_id = target.split(":", 1)
-        if maybe_type.lower() in {"group", "user", "private"}:
-            target_type = "user" if maybe_type.lower() == "private" else maybe_type.lower()
-            target_id = maybe_id
-
-    endpoint = "send_group_msg" if target_type == "group" else "send_private_msg"
-    payload = {"message": message}
-    if target_type == "group":
-        payload["group_id"] = int(target_id) if target_id.isdigit() else target_id
-    else:
-        payload["user_id"] = int(target_id) if target_id.isdigit() else target_id
-
-    headers = {"Content-Type": "application/json"}
-    if access_token:
-        headers["Authorization"] = f"Bearer {access_token}"
-
-    try:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-            async with session.post(f"{bridge_url}/{endpoint}", headers=headers, json=payload) as resp:
-                data = await resp.json(content_type=None)
-                if resp.status >= 400:
-                    return _error(f"QQ bridge error ({resp.status}): {data}")
-                if data.get("status") not in (None, "ok"):
-                    return _error(f"QQ bridge send failed: {data}")
-                message_id = None
-                if isinstance(data.get("data"), dict):
-                    message_id = data["data"].get("message_id")
-                return {"success": True, "platform": "qq", "chat_id": chat_id, "message_id": message_id}
-    except Exception as e:
-        return _error(f"QQ send failed: {e}")
 
 
 async def _send_whatsapp(extra, chat_id, message):
@@ -721,7 +696,10 @@ async def _send_email(extra, chat_id, message):
     address = extra.get("address") or os.getenv("EMAIL_ADDRESS", "")
     password = os.getenv("EMAIL_PASSWORD", "")
     smtp_host = extra.get("smtp_host") or os.getenv("EMAIL_SMTP_HOST", "")
-    smtp_port = int(os.getenv("EMAIL_SMTP_PORT", "587"))
+    try:
+        smtp_port = int(os.getenv("EMAIL_SMTP_PORT", "587"))
+    except (ValueError, TypeError):
+        smtp_port = 587
 
     if not all([address, password, smtp_host]):
         return {"error": "Email not configured (EMAIL_ADDRESS, EMAIL_PASSWORD, EMAIL_SMTP_HOST required)"}
@@ -773,18 +751,21 @@ async def _send_sms(auth_token, chat_id, message):
     message = message.strip()
 
     try:
+        from gateway.platforms.base import resolve_proxy_url, proxy_kwargs_for_aiohttp
+        _proxy = resolve_proxy_url()
+        _sess_kw, _req_kw = proxy_kwargs_for_aiohttp(_proxy)
         creds = f"{account_sid}:{auth_token}"
         encoded = base64.b64encode(creds.encode("ascii")).decode("ascii")
         url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
         headers = {"Authorization": f"Basic {encoded}"}
 
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30), **_sess_kw) as session:
             form_data = aiohttp.FormData()
             form_data.add_field("From", from_number)
             form_data.add_field("To", chat_id)
             form_data.add_field("Body", message)
 
-            async with session.post(url, data=form_data, headers=headers) as resp:
+            async with session.post(url, data=form_data, headers=headers, **_req_kw) as resp:
                 body = await resp.json()
                 if resp.status >= 400:
                     error_msg = body.get("message", str(body))
@@ -942,6 +923,54 @@ async def _send_wecom(extra, chat_id, message):
         return _error(f"WeCom send failed: {e}")
 
 
+async def _send_weixin(pconfig, chat_id, message, media_files=None):
+    """Send via Weixin iLink using the native adapter helper."""
+    try:
+        from gateway.platforms.weixin import check_weixin_requirements, send_weixin_direct
+        if not check_weixin_requirements():
+            return {"error": "Weixin requirements not met. Need aiohttp + cryptography."}
+    except ImportError:
+        return {"error": "Weixin adapter not available."}
+
+    try:
+        return await send_weixin_direct(
+            extra=pconfig.extra,
+            token=pconfig.token,
+            chat_id=chat_id,
+            message=message,
+            media_files=media_files,
+        )
+    except Exception as e:
+        return _error(f"Weixin send failed: {e}")
+
+
+async def _send_bluebubbles(extra, chat_id, message):
+    """Send via BlueBubbles iMessage server using the adapter's REST API."""
+    try:
+        from gateway.platforms.bluebubbles import BlueBubblesAdapter, check_bluebubbles_requirements
+        if not check_bluebubbles_requirements():
+            return {"error": "BlueBubbles requirements not met (need aiohttp + httpx)."}
+    except ImportError:
+        return {"error": "BlueBubbles adapter not available."}
+
+    try:
+        from gateway.config import PlatformConfig
+        pconfig = PlatformConfig(extra=extra)
+        adapter = BlueBubblesAdapter(pconfig)
+        connected = await adapter.connect()
+        if not connected:
+            return _error("BlueBubbles: failed to connect to server")
+        try:
+            result = await adapter.send(chat_id, message)
+            if not result.success:
+                return _error(f"BlueBubbles send failed: {result.error}")
+            return {"success": True, "platform": "bluebubbles", "chat_id": chat_id, "message_id": result.message_id}
+        finally:
+            await adapter.disconnect()
+    except Exception as e:
+        return _error(f"BlueBubbles send failed: {e}")
+
+
 async def _send_feishu(pconfig, chat_id, message, media_files=None, thread_id=None):
     """Send via Feishu/Lark using the adapter's send pipeline."""
     try:
@@ -1001,7 +1030,8 @@ async def _send_feishu(pconfig, chat_id, message, media_files=None, thread_id=No
 
 def _check_send_message():
     """Gate send_message on gateway running (always available on messaging platforms)."""
-    platform = os.getenv("HERMES_SESSION_PLATFORM", "")
+    from gateway.session_context import get_session_env
+    platform = get_session_env("HERMES_SESSION_PLATFORM", "")
     if platform and platform != "local":
         return True
     try:
@@ -1009,6 +1039,58 @@ def _check_send_message():
         return is_gateway_running()
     except Exception:
         return False
+
+
+async def _send_qqbot(pconfig, chat_id, message):
+    """Send via QQBot using the REST API directly (no WebSocket needed).
+
+    Uses the QQ Bot Open Platform REST endpoints to get an access token
+    and post a message. Works for guild channels without requiring
+    a running gateway adapter.
+    """
+    try:
+        import httpx
+    except ImportError:
+        return _error("QQBot direct send requires httpx. Run: pip install httpx")
+
+    extra = pconfig.extra or {}
+    appid = extra.get("app_id") or os.getenv("QQ_APP_ID", "")
+    secret = (pconfig.token or extra.get("client_secret")
+              or os.getenv("QQ_CLIENT_SECRET", ""))
+    if not appid or not secret:
+        return _error("QQBot: QQ_APP_ID / QQ_CLIENT_SECRET not configured.")
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Step 1: Get access token
+            token_resp = await client.post(
+                "https://bots.qq.com/app/getAppAccessToken",
+                json={"appId": str(appid), "clientSecret": str(secret)},
+            )
+            if token_resp.status_code != 200:
+                return _error(f"QQBot token request failed: {token_resp.status_code}")
+            token_data = token_resp.json()
+            access_token = token_data.get("access_token")
+            if not access_token:
+                return _error(f"QQBot: no access_token in response")
+
+            # Step 2: Send message via REST
+            headers = {
+                "Authorization": f"QQBotAccessToken {access_token}",
+                "Content-Type": "application/json",
+            }
+            url = f"https://api.sgroup.qq.com/channels/{chat_id}/messages"
+            payload = {"content": message[:4000], "msg_type": 0}
+
+            resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code in (200, 201):
+                data = resp.json()
+                return {"success": True, "platform": "qqbot", "chat_id": chat_id,
+                        "message_id": data.get("id")}
+            else:
+                return _error(f"QQBot send failed: {resp.status_code} {resp.text}")
+    except Exception as e:
+        return _error(f"QQBot send failed: {e}")
 
 
 # --- Registry ---

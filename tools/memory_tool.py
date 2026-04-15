@@ -32,7 +32,17 @@ from contextlib import contextmanager
 from pathlib import Path
 from hermes_constants import get_hermes_home
 from typing import Dict, Any, List, Optional
-from tools.platform_compat import file_lock
+
+# fcntl is Unix-only; on Windows use msvcrt for file locking
+msvcrt = None
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+    try:
+        import msvcrt
+    except ImportError:
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +53,6 @@ logger = logging.getLogger(__name__)
 def get_memory_dir() -> Path:
     """Return the profile-scoped memories directory."""
     return get_hermes_home() / "memories"
-
-# Backward-compatible alias — gateway/run.py imports this at runtime inside
-# a function body, so it gets the correct snapshot for that process.  New code
-# should prefer get_memory_dir().
-MEMORY_DIR = get_memory_dir()
 
 ENTRY_DELIMITER = "\n§\n"
 
@@ -143,8 +148,33 @@ class MemoryStore:
         atomically replaced via os.replace().
         """
         lock_path = path.with_suffix(path.suffix + ".lock")
-        with file_lock(lock_path):
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if fcntl is None and msvcrt is None:
             yield
+            return
+
+        if msvcrt and (not lock_path.exists() or lock_path.stat().st_size == 0):
+            lock_path.write_text(" ", encoding="utf-8")
+
+        fd = open(lock_path, "r+" if msvcrt else "a+")
+        try:
+            if fcntl:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            else:
+                fd.seek(0)
+                msvcrt.locking(fd.fileno(), msvcrt.LK_LOCK, 1)
+            yield
+        finally:
+            if fcntl:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            elif msvcrt:
+                try:
+                    fd.seek(0)
+                    msvcrt.locking(fd.fileno(), msvcrt.LK_UNLCK, 1)
+                except (OSError, IOError):
+                    pass
+            fd.close()
 
     @staticmethod
     def _path_for(target: str) -> Path:
@@ -548,6 +578,7 @@ registry.register(
     check_fn=check_memory_requirements,
     emoji="🧠",
 )
+
 
 
 

@@ -22,8 +22,8 @@ from tools.tool_backend_helpers import managed_nous_tools_enabled
 
 def check_mark(ok: bool) -> str:
     if ok:
-        return color("[OK]", Colors.GREEN)
-    return color("[FAIL]", Colors.RED)
+        return color("✓", Colors.GREEN)
+    return color("✗", Colors.RED)
 
 def redact_key(key: str) -> str:
     """Redact an API key for display."""
@@ -62,7 +62,7 @@ def _configured_model_label(config: dict) -> str:
         model = model_cfg.strip()
     else:
         model = ""
-    return model or "(not set / 未设置)"
+    return model or "(not set)"
 
 
 def _effective_provider_label() -> str:
@@ -76,12 +76,10 @@ def _effective_provider_label() -> str:
     if effective == "openrouter" and get_env_value("OPENAI_BASE_URL"):
         effective = "custom"
 
-    if effective == "minimax":
-        return "MiniMax / MiniMax（国际站直连，Anthropic-compatible API）"
-    if effective == "minimax-cn":
-        return "MiniMax China / MiniMax China（国内直连，Anthropic-compatible API）"
-
     return provider_label(effective)
+
+
+from hermes_constants import is_termux as _is_termux
 
 
 def show_status(args):
@@ -90,9 +88,15 @@ def show_status(args):
     deep = getattr(args, 'deep', False)
     
     print()
-    print(color("=" * 59, Colors.CYAN))
-    print(color("                Hermes Agent Status", Colors.CYAN))
-    print(color("=" * 59, Colors.CYAN))
+    print(color("┌─────────────────────────────────────────────────────────┐", Colors.CYAN))
+    print(color("│                 ⚕ Hermes Agent Status                  │", Colors.CYAN))
+    print(color("└─────────────────────────────────────────────────────────┘", Colors.CYAN))
+    
+    # =========================================================================
+    # Environment
+    # =========================================================================
+    print()
+    print(color("◆ Environment", Colors.CYAN, Colors.BOLD))
     print(f"  Project:      {PROJECT_ROOT}")
     print(f"  Python:       {sys.version.split()[0]}")
     
@@ -111,7 +115,7 @@ def show_status(args):
     # API Keys
     # =========================================================================
     print()
-    print(color("[Section] API Keys / API 密钥", Colors.CYAN, Colors.BOLD))
+    print(color("◆ API Keys", Colors.CYAN, Colors.BOLD))
     
     keys = {
         "OpenRouter": "OPENROUTER_API_KEY",
@@ -137,11 +141,8 @@ def show_status(args):
         display = redact_key(value) if not show_all else value
         print(f"  {name:<12}  {check_mark(has_key)} {display}")
 
-    anthropic_value = (
-        get_env_value("ANTHROPIC_TOKEN")
-        or get_env_value("ANTHROPIC_API_KEY")
-        or ""
-    )
+    from hermes_cli.auth import get_anthropic_key
+    anthropic_value = get_anthropic_key()
     anthropic_display = redact_key(anthropic_value) if not show_all else anthropic_value
     print(f"  {'Anthropic':<12}  {check_mark(bool(anthropic_value))} {anthropic_display}")
 
@@ -149,7 +150,7 @@ def show_status(args):
     # Auth Providers (OAuth)
     # =========================================================================
     print()
-    print(color("[Section] Auth Providers / 登录提供商", Colors.CYAN, Colors.BOLD))
+    print(color("◆ Auth Providers", Colors.CYAN, Colors.BOLD))
 
     try:
         from hermes_cli.auth import get_nous_auth_status, get_codex_auth_status, get_qwen_auth_status
@@ -211,11 +212,11 @@ def show_status(args):
     if managed_nous_tools_enabled():
         features = get_nous_subscription_features(config)
         print()
-        print(color("[Section] Nous Subscription Features / Nous 订阅功能", Colors.CYAN, Colors.BOLD))
+        print(color("◆ Nous Subscription Features", Colors.CYAN, Colors.BOLD))
         if not features.nous_auth_present:
-            print(f"  Nous Portal   {check_mark(False)} not logged in / 未登录")
+            print("  Nous Portal   ✗ not logged in")
         else:
-            print(f"  Nous Portal   {check_mark(True)} managed tools available / 可使用托管工具")
+            print("  Nous Portal   ✓ managed tools available")
         for feature in features.items():
             if feature.managed_by_nous:
                 state = "active via Nous subscription"
@@ -234,7 +235,7 @@ def show_status(args):
     # API-Key Providers
     # =========================================================================
     print()
-    print(color("[Section] API-Key Providers / API 密钥提供商", Colors.CYAN, Colors.BOLD))
+    print(color("◆ API-Key Providers", Colors.CYAN, Colors.BOLD))
 
     apikey_providers = {
         "Z.AI / GLM":       ("GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY"),
@@ -256,7 +257,7 @@ def show_status(args):
     # Terminal Configuration
     # =========================================================================
     print()
-    print(color("[Section] Terminal Backend / 终端后端", Colors.CYAN, Colors.BOLD))
+    print(color("◆ Terminal Backend", Colors.CYAN, Colors.BOLD))
     
     terminal_env = os.getenv("TERMINAL_ENV", "")
     if not terminal_env:
@@ -288,10 +289,9 @@ def show_status(args):
     # Messaging Platforms
     # =========================================================================
     print()
-    print(color("[Section] Messaging Platforms / 消息平台", Colors.CYAN, Colors.BOLD))
+    print(color("◆ Messaging Platforms", Colors.CYAN, Colors.BOLD))
     
     platforms = {
-        "QQ": ("QQ_ONEBOT_URL", "QQ_HOME_CHANNEL"),
         "Telegram": ("TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHANNEL"),
         "Discord": ("DISCORD_BOT_TOKEN", "DISCORD_HOME_CHANNEL"),
         "WhatsApp": ("WHATSAPP_ENABLED", None),
@@ -302,6 +302,10 @@ def show_status(args):
         "DingTalk": ("DINGTALK_CLIENT_ID", None),
         "Feishu": ("FEISHU_APP_ID", "FEISHU_HOME_CHANNEL"),
         "WeCom": ("WECOM_BOT_ID", "WECOM_HOME_CHANNEL"),
+        "WeCom Callback": ("WECOM_CALLBACK_CORP_ID", None),
+        "Weixin": ("WEIXIN_ACCOUNT_ID", "WEIXIN_HOME_CHANNEL"),
+        "BlueBubbles": ("BLUEBUBBLES_SERVER_URL", "BLUEBUBBLES_HOME_CHANNEL"),
+        "QQBot": ("QQ_APP_ID", "QQ_HOME_CHANNEL"),
     }
     
     for name, (token_var, home_var) in platforms.items():
@@ -322,26 +326,56 @@ def show_status(args):
     # Gateway Status
     # =========================================================================
     print()
-    print(color("[Section] Gateway Service / 网关服务", Colors.CYAN, Colors.BOLD))
+    print(color("◆ Gateway Service", Colors.CYAN, Colors.BOLD))
     
-    if sys.platform.startswith('linux'):
+    if _is_termux():
         try:
-            from hermes_cli.gateway import get_service_name
-            _gw_svc = get_service_name()
+            from hermes_cli.gateway import find_gateway_pids
+            gateway_pids = find_gateway_pids()
         except Exception:
-            _gw_svc = "hermes-gateway"
-        try:
-            result = subprocess.run(
-                ["systemctl", "--user", "is-active", _gw_svc],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            is_active = result.stdout.strip() == "active"
-        except subprocess.TimeoutExpired:
-            is_active = False
-        print(f"  Status:       {check_mark(is_active)} {'running' if is_active else 'stopped'}")
-        print("  Manager:      systemd (user)")
+            gateway_pids = []
+        is_running = bool(gateway_pids)
+        print(f"  Status:       {check_mark(is_running)} {'running' if is_running else 'stopped'}")
+        print("  Manager:      Termux / manual process")
+        if gateway_pids:
+            rendered = ", ".join(str(pid) for pid in gateway_pids[:3])
+            if len(gateway_pids) > 3:
+                rendered += ", ..."
+            print(f"  PID(s):       {rendered}")
+        else:
+            print("  Start with:   hermes gateway")
+            print("  Note:         Android may stop background jobs when Termux is suspended")
+
+    elif sys.platform.startswith('linux'):
+        from hermes_constants import is_container
+        if is_container():
+            # Docker/Podman: no systemd — check for running gateway processes
+            try:
+                from hermes_cli.gateway import find_gateway_pids
+                gateway_pids = find_gateway_pids()
+                is_active = len(gateway_pids) > 0
+            except Exception:
+                is_active = False
+            print(f"  Status:       {check_mark(is_active)} {'running' if is_active else 'stopped'}")
+            print("  Manager:      docker (foreground)")
+        else:
+            try:
+                from hermes_cli.gateway import get_service_name
+                _gw_svc = get_service_name()
+            except Exception:
+                _gw_svc = "hermes-gateway"
+            try:
+                result = subprocess.run(
+                    ["systemctl", "--user", "is-active", _gw_svc],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                is_active = result.stdout.strip() == "active"
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                is_active = False
+            print(f"  Status:       {check_mark(is_active)} {'running' if is_active else 'stopped'}")
+            print("  Manager:      systemd (user)")
         
     elif sys.platform == 'darwin':
         from hermes_cli.gateway import get_launchd_label
@@ -365,7 +399,7 @@ def show_status(args):
     # Cron Jobs
     # =========================================================================
     print()
-    print(color("[Section] Scheduled Jobs / 定时任务", Colors.CYAN, Colors.BOLD))
+    print(color("◆ Scheduled Jobs", Colors.CYAN, Colors.BOLD))
     
     jobs_file = get_hermes_home() / "cron" / "jobs.json"
     if jobs_file.exists():
@@ -385,7 +419,7 @@ def show_status(args):
     # Sessions
     # =========================================================================
     print()
-    print(color("[Section] Sessions / 会话", Colors.CYAN, Colors.BOLD))
+    print(color("◆ Sessions", Colors.CYAN, Colors.BOLD))
     
     sessions_file = get_hermes_home() / "sessions" / "sessions.json"
     if sessions_file.exists():
@@ -404,7 +438,7 @@ def show_status(args):
     # =========================================================================
     if deep:
         print()
-        print(color("[Section] Deep Checks / 深度检查", Colors.CYAN, Colors.BOLD))
+        print(color("◆ Deep Checks", Colors.CYAN, Colors.BOLD))
         
         # Check OpenRouter connectivity
         openrouter_key = os.getenv("OPENROUTER_API_KEY", "")

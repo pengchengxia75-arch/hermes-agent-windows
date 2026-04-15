@@ -42,6 +42,7 @@ _PROVIDER_ENV_HINTS = (
     "ZAI_API_KEY",
     "Z_AI_API_KEY",
     "KIMI_API_KEY",
+    "KIMI_CN_API_KEY",
     "MINIMAX_API_KEY",
     "MINIMAX_CN_API_KEY",
     "KILOCODE_API_KEY",
@@ -51,7 +52,34 @@ _PROVIDER_ENV_HINTS = (
     "AI_GATEWAY_API_KEY",
     "OPENCODE_ZEN_API_KEY",
     "OPENCODE_GO_API_KEY",
+    "XIAOMI_API_KEY",
 )
+
+
+from hermes_constants import is_termux as _is_termux
+
+
+def _python_install_cmd() -> str:
+    return "python -m pip install" if _is_termux() else "uv pip install"
+
+
+def _system_package_install_cmd(pkg: str) -> str:
+    if _is_termux():
+        return f"pkg install {pkg}"
+    if sys.platform == "darwin":
+        return f"brew install {pkg}"
+    return f"sudo apt install {pkg}"
+
+
+def _termux_browser_setup_steps(node_installed: bool) -> list[str]:
+    steps: list[str] = []
+    step = 1
+    if not node_installed:
+        steps.append(f"{step}) pkg install nodejs")
+        step += 1
+    steps.append(f"{step}) npm install -g agent-browser")
+    steps.append(f"{step + 1}) agent-browser install")
+    return steps
 
 
 def _has_provider_env_config(content: str) -> bool:
@@ -87,16 +115,16 @@ def _apply_doctor_tool_availability_overrides(available: list[str], unavailable:
 
 
 def check_ok(text: str, detail: str = ""):
-    print(f"  {color('[OK]', Colors.GREEN)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
+    print(f"  {color('✓', Colors.GREEN)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
 
 def check_warn(text: str, detail: str = ""):
-    print(f"  {color('[WARN]', Colors.YELLOW)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
+    print(f"  {color('⚠', Colors.YELLOW)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
 
 def check_fail(text: str, detail: str = ""):
-    print(f"  {color('[FAIL]', Colors.RED)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
+    print(f"  {color('✗', Colors.RED)} {text}" + (f" {color(detail, Colors.DIM)}" if detail else ""))
 
 def check_info(text: str):
-    print(f"    {color('[INFO]', Colors.CYAN)} {text}")
+    print(f"    {color('→', Colors.CYAN)} {text}")
 
 
 def _check_gateway_service_linger(issues: list[str]) -> None:
@@ -119,9 +147,41 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
         return
 
     print()
-    print(color("=" * 59, Colors.CYAN))
-    print(color("                   Hermes Doctor", Colors.CYAN))
-    print(color("=" * 59, Colors.CYAN))
+    print(color("◆ Gateway Service", Colors.CYAN, Colors.BOLD))
+
+    linger_enabled, linger_detail = get_systemd_linger_status()
+    if linger_enabled is True:
+        check_ok("Systemd linger enabled", "(gateway service survives logout)")
+    elif linger_enabled is False:
+        check_warn("Systemd linger disabled", "(gateway may stop after logout)")
+        check_info("Run: sudo loginctl enable-linger $USER")
+        issues.append("Enable linger for the gateway user service: sudo loginctl enable-linger $USER")
+    else:
+        check_warn("Could not verify systemd linger", f"({linger_detail})")
+
+
+def run_doctor(args):
+    """Run diagnostic checks."""
+    should_fix = getattr(args, 'fix', False)
+
+    # Doctor runs from the interactive CLI, so CLI-gated tool availability
+    # checks (like cronjob management) should see the same context as `hermes`.
+    os.environ.setdefault("HERMES_INTERACTIVE", "1")
+    
+    issues = []
+    manual_issues = []  # issues that can't be auto-fixed
+    fixed_count = 0
+    
+    print()
+    print(color("┌─────────────────────────────────────────────────────────┐", Colors.CYAN))
+    print(color("│                 🩺 Hermes Doctor                        │", Colors.CYAN))
+    print(color("└─────────────────────────────────────────────────────────┘", Colors.CYAN))
+    
+    # =========================================================================
+    # Check: Python version
+    # =========================================================================
+    print()
+    print(color("◆ Python Environment", Colors.CYAN, Colors.BOLD))
     
     py_version = sys.version_info
     if py_version >= (3, 11):
@@ -168,7 +228,7 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
             check_ok(name)
         except ImportError:
             check_fail(name, "(missing)")
-            issues.append(f"Install {name}: uv pip install {module}")
+            issues.append(f"Install {name}: {_python_install_cmd()} {module}")
     
     for module, name in optional_packages:
         try:
@@ -277,8 +337,8 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
                             model_section[k] = raw_config.pop(k)
                         else:
                             raw_config.pop(k)
-                    with open(config_path, "w") as f:
-                        yaml.dump(raw_config, f, default_flow_style=False)
+                    from utils import atomic_yaml_write
+                    atomic_yaml_write(config_path, raw_config)
                     check_ok("Migrated stale root-level keys into model section")
                     fixed_count += 1
                 else:
@@ -352,30 +412,6 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
         else:
             check_warn(f"{_DHH} not found", "(will be created on first use)")
     
-    # Windows-specific runtime checks
-    if os.name == "nt":
-        print()
-        print(color("Windows Runtime", Colors.CYAN, Colors.BOLD))
-
-        git_bash = os.getenv("HERMES_GIT_BASH_PATH", "").strip()
-        if git_bash and Path(git_bash).exists():
-            check_ok("HERMES_GIT_BASH_PATH", f"({git_bash})")
-        elif git_bash:
-            check_warn("HERMES_GIT_BASH_PATH set but file missing", f"({git_bash})")
-            issues.append("Fix HERMES_GIT_BASH_PATH to point to Git Bash")
-        else:
-            check_warn("HERMES_GIT_BASH_PATH not set")
-            check_info("Set it to your Git Bash path, e.g. C:\\Program Files\\Git\\bin\\bash.exe")
-            issues.append("Set HERMES_GIT_BASH_PATH for local terminal compatibility")
-
-        hermes_cmd = shutil.which("hermes")
-        if hermes_cmd:
-            check_ok("hermes on PATH", f"({hermes_cmd})")
-        else:
-            check_warn("hermes not on PATH")
-            check_info("Open a new PowerShell window or add venv\\Scripts to your user PATH")
-            issues.append("Add Hermes venv Scripts directory to PATH")
-
     # Check expected subdirectories
     expected_subdirs = ["cron", "sessions", "logs", "skills", "memories"]
     for subdir_name in expected_subdirs:
@@ -495,7 +531,7 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
         check_ok("ripgrep (rg)", "(faster file search)")
     else:
         check_warn("ripgrep (rg) not found", "(file search uses grep fallback)")
-        check_info("Install for faster search: winget install BurntSushi.ripgrep.MSVC" if os.name == 'nt' else "Install for faster search: sudo apt install ripgrep")
+        check_info(f"Install for faster search: {_system_package_install_cmd('ripgrep')}")
     
     # Docker (optional)
     terminal_env = os.getenv("TERMINAL_ENV", "local")
@@ -518,7 +554,10 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
         if shutil.which("docker"):
             check_ok("docker", "(optional)")
         else:
-            check_warn("docker not found", "(optional)")
+            if _is_termux():
+                check_info("Docker backend is not available inside Termux (expected on Android)")
+            else:
+                check_warn("docker not found", "(optional)")
     
     # SSH (if using ssh backend)
     if terminal_env == "ssh":
@@ -566,9 +605,23 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
         if agent_browser_path.exists():
             check_ok("agent-browser (Node.js)", "(browser automation)")
         else:
-            check_warn("agent-browser not installed", "(run: npm install)")
+            if _is_termux():
+                check_info("agent-browser is not installed (expected in the tested Termux path)")
+                check_info("Install it manually later with: npm install -g agent-browser && agent-browser install")
+                check_info("Termux browser setup:")
+                for step in _termux_browser_setup_steps(node_installed=True):
+                    check_info(step)
+            else:
+                check_warn("agent-browser not installed", "(run: npm install)")
     else:
-        check_warn("Node.js not found", "(optional, needed for browser tools)")
+        if _is_termux():
+            check_info("Node.js not found (browser tools are optional in the tested Termux path)")
+            check_info("Install Node.js on Termux with: pkg install nodejs")
+            check_info("Termux browser setup:")
+            for step in _termux_browser_setup_steps(node_installed=False):
+                check_info(step)
+        else:
+            check_warn("Node.js not found", "(optional, needed for browser tools)")
     
     # npm audit for all Node.js packages
     if shutil.which("npm"):
@@ -634,7 +687,8 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
     else:
         check_warn("OpenRouter API", "(not configured)")
     
-    anthropic_key = os.getenv("ANTHROPIC_TOKEN") or os.getenv("ANTHROPIC_API_KEY")
+    from hermes_cli.auth import get_anthropic_key
+    anthropic_key = get_anthropic_key()
     if anthropic_key:
         print("  Checking Anthropic API...", end="", flush=True)
         try:
@@ -668,13 +722,15 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
     _apikey_providers = [
         ("Z.AI / GLM",      ("GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY"), "https://api.z.ai/api/paas/v4/models", "GLM_BASE_URL", True),
         ("Kimi / Moonshot",  ("KIMI_API_KEY",),                              "https://api.moonshot.ai/v1/models",   "KIMI_BASE_URL", True),
+        ("Kimi / Moonshot (China)", ("KIMI_CN_API_KEY",),                    "https://api.moonshot.cn/v1/models",   None, True),
+        ("Arcee AI",         ("ARCEEAI_API_KEY",),                            "https://api.arcee.ai/api/v1/models",  "ARCEE_BASE_URL", True),
         ("DeepSeek",         ("DEEPSEEK_API_KEY",),                           "https://api.deepseek.com/v1/models",  "DEEPSEEK_BASE_URL", True),
         ("Hugging Face",     ("HF_TOKEN",),                                   "https://router.huggingface.co/v1/models", "HF_BASE_URL", True),
         ("Alibaba/DashScope", ("DASHSCOPE_API_KEY",),                         "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models", "DASHSCOPE_BASE_URL", True),
-        # MiniMax APIs don't support /models endpoint — https://github.com/NousResearch/hermes-agent/issues/811
-        ("MiniMax",          ("MINIMAX_API_KEY",),                            None,                                  "MINIMAX_BASE_URL", False),
-        ("MiniMax (China)",  ("MINIMAX_CN_API_KEY",),                         None,                                  "MINIMAX_CN_BASE_URL", False),
-        ("AI Gateway",       ("AI_GATEWAY_API_KEY",),                          "https://ai-gateway.vercel.sh/v1/models", "AI_GATEWAY_BASE_URL", True),
+        # MiniMax: the /anthropic endpoint doesn't support /models, but the /v1 endpoint does.
+        ("MiniMax",          ("MINIMAX_API_KEY",),                            "https://api.minimax.io/v1/models",    "MINIMAX_BASE_URL", True),
+        ("MiniMax (China)",  ("MINIMAX_CN_API_KEY",),                         "https://api.minimaxi.com/v1/models",  "MINIMAX_CN_BASE_URL", True),
+        ("Vercel AI Gateway",       ("AI_GATEWAY_API_KEY",),                          "https://ai-gateway.vercel.sh/v1/models", "AI_GATEWAY_BASE_URL", True),
         ("Kilo Code",        ("KILOCODE_API_KEY",),                            "https://api.kilo.ai/api/gateway/models",  "KILOCODE_BASE_URL", True),
         ("OpenCode Zen",     ("OPENCODE_ZEN_API_KEY",),                        "https://opencode.ai/zen/v1/models",  "OPENCODE_ZEN_BASE_URL", True),
         ("OpenCode Go",      ("OPENCODE_GO_API_KEY",),                         "https://opencode.ai/zen/go/v1/models", "OPENCODE_GO_BASE_URL", True),
@@ -694,14 +750,19 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
             print(f"  Checking {_pname} API...", end="", flush=True)
             try:
                 import httpx
-                _base = os.getenv(_base_env, "")
+                _base = os.getenv(_base_env, "") if _base_env else ""
                 # Auto-detect Kimi Code keys (sk-kimi-) → api.kimi.com
                 if not _base and _key.startswith("sk-kimi-"):
                     _base = "https://api.kimi.com/coding/v1"
+                # Anthropic-compat endpoints (/anthropic) don't support /models.
+                # Rewrite to the OpenAI-compat /v1 surface for health checks.
+                if _base and _base.rstrip("/").endswith("/anthropic"):
+                    from agent.auxiliary_client import _to_openai_base_url
+                    _base = _to_openai_base_url(_base)
                 _url = (_base.rstrip("/") + "/models") if _base else _default_url
                 _headers = {"Authorization": f"Bearer {_key}"}
                 if "api.kimi.com" in _url.lower():
-                    _headers["User-Agent"] = "KimiCLI/1.0"
+                    _headers["User-Agent"] = "KimiCLI/1.30.0"
                 _resp = httpx.get(
                     _url,
                     headers=_headers,
@@ -731,8 +792,9 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
                 __import__("tinker_atropos")
                 check_ok("tinker-atropos", "(RL training backend)")
             except ImportError:
-                check_warn("tinker-atropos found but not installed", "(run: uv pip install -e ./tinker-atropos)")
-                issues.append("Install tinker-atropos: uv pip install -e ./tinker-atropos")
+                install_cmd = f"{_python_install_cmd()} -e ./tinker-atropos"
+                check_warn("tinker-atropos found but not installed", f"(run: {install_cmd})")
+                issues.append(f"Install tinker-atropos: {install_cmd}")
         else:
             check_warn("tinker-atropos requires Python 3.11+", f"(current: {py_version.major}.{py_version.minor})")
     else:
@@ -859,7 +921,7 @@ def _check_gateway_service_linger(issues: list[str]) -> None:
             mem0_key = mem0_cfg.get("api_key", "")
             if mem0_key:
                 check_ok("Mem0 API key configured")
-                check_info(f"user_id={mem0_cfg.get('user_id', 'Status')}  agent_id={mem0_cfg.get('agent_id', 'Status')}")
+                check_info(f"user_id={mem0_cfg.get('user_id', '?')}  agent_id={mem0_cfg.get('agent_id', '?')}")
             else:
                 check_fail("Mem0 API key not set", "(set MEM0_API_KEY in .env or run hermes memory setup)")
                 issues.append("Mem0 is set as memory provider but API key is missing")

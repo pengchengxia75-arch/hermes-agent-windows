@@ -5,7 +5,6 @@ Pure display functions with no HermesCLI state dependency.
 
 import json
 import logging
-import os
 import shutil
 import subprocess
 import threading
@@ -18,15 +17,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-try:
-    from prompt_toolkit import print_formatted_text as _pt_print
-    from prompt_toolkit.formatted_text import ANSI as _PT_ANSI
-except ImportError:
-    def _pt_print(*args, **kwargs):
-        return None
-
-    def _PT_ANSI(value):
-        return value
+from prompt_toolkit import print_formatted_text as _pt_print
+from prompt_toolkit.formatted_text import ANSI as _PT_ANSI
 
 logger = logging.getLogger(__name__)
 
@@ -97,12 +89,6 @@ HERMES_CADUCEUS = """[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⣀⣀�
 [#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⠈⣡⠞⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
 [#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]"""
 
-COMPACT_BANNER = """
-[bold #FFD700]╔══════════════════════════════════════════════════════════════╗[/]
-[bold #FFD700]║[/]  [#FFBF00]⚕ NOUS HERMES[/] [dim #B8860B]- AI Agent Framework[/]              [bold #FFD700]║[/]
-[bold #FFD700]║[/]  [#CD7F32]Messenger of the Digital Gods[/]    [dim #B8860B]Nous Research[/]   [bold #FFD700]║[/]
-[bold #FFD700]╚══════════════════════════════════════════════════════════════╝[/]
-"""
 
 
 # =========================================================================
@@ -122,13 +108,8 @@ def get_available_skills() -> Dict[str, List[str]]:
     except Exception:
         return {}
 
-    # Hide orchestration helper skills that confuse end users during startup.
-    hidden_startup_skills = {"claude-code"}
-
     skills_by_category: Dict[str, List[str]] = {}
     for skill in all_skills:
-        if skill.get("name") in hidden_startup_skills:
-            continue
         category = skill.get("category") or "general"
         skills_by_category.setdefault(category, []).append(skill["name"])
     return skills_by_category
@@ -307,10 +288,16 @@ def _format_context_length(tokens: int) -> str:
     """Format a token count for display (e.g. 128000 → '128K', 1048576 → '1M')."""
     if tokens >= 1_000_000:
         val = tokens / 1_000_000
-        return f"{val:g}M"
+        rounded = round(val)
+        if abs(val - rounded) < 0.05:
+            return f"{rounded}M"
+        return f"{val:.1f}M"
     elif tokens >= 1_000:
         val = tokens / 1_000
-        return f"{val:g}K"
+        rounded = round(val)
+        if abs(val - rounded) < 0.05:
+            return f"{rounded}K"
+        return f"{val:.1f}K"
     return str(tokens)
 
 

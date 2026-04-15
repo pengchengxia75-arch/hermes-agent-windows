@@ -6,6 +6,7 @@
 
 - 用 `PyInstaller` 打包轻量 EXE 安装器
 - 内置并调用仓库里的 `scripts/install.ps1`
+- 构建时打包一份本地仓库快照，安装时优先使用这个快照
 - 安装前先做环境预检
 - 缺依赖时显示中文说明、推荐版本和官方下载链接
 - 安装日志写入 `%TEMP%\\hermes-installer.log`

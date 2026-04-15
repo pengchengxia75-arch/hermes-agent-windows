@@ -30,7 +30,6 @@ source-data/*
 run_datagen_megascience_glm4-6.sh
 data/*
 node_modules/
-hermes_cli/web_dist/
 .claude/
 browser-use/
 agent-browser/

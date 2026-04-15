@@ -123,6 +123,10 @@ def uninstall_gateway_service():
     
     if platform.system() != "Linux":
         return False
+
+    prefix = os.getenv("PREFIX", "")
+    if os.getenv("TERMUX_VERSION") or "com.termux/files/usr" in prefix:
+        return False
     
     try:
         from hermes_cli.gateway import get_service_name
@@ -312,17 +316,11 @@ def run_uninstall(args):
         print(f"  {hermes_home}/")
         print()
         print("To reinstall later with your existing settings:")
-        if os.name == "nt":
-            print(color("  irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1 | iex", Colors.DIM))
-        else:
-            print(color("  curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash", Colors.DIM))
+        print(color("  curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash", Colors.DIM))
         print()
     
     print(color("Reload your shell to complete the process:", Colors.YELLOW))
-    if os.name == "nt":
-        print("  Restart PowerShell or open a new terminal window")
-    else:
-        print("  source ~/.bashrc  # or ~/.zshrc")
+    print("  source ~/.bashrc  # or ~/.zshrc")
     print()
     print("Thank you for using Hermes Agent! ⚕")
     print()
