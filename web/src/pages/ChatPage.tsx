@@ -24,16 +24,43 @@ const QUICK_ACTIONS = [
 
 // ── Component ──────────────────────────────────────────────────────────────
 
+const STORAGE_KEY = "hermes_chat_messages";
+const HISTORY_KEY = "hermes_chat_history";
+
+function loadSaved(): { messages: Message[]; history: { role: string; content: string }[] } {
+  try {
+    const msgs = sessionStorage.getItem(STORAGE_KEY);
+    const hist = sessionStorage.getItem(HISTORY_KEY);
+    return {
+      messages: msgs ? JSON.parse(msgs) : [],
+      history: hist ? JSON.parse(hist) : [],
+    };
+  } catch {
+    return { messages: [], history: [] };
+  }
+}
+
 export default function ChatPage() {
   const { t } = useI18n();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const saved = loadSaved();
+  const [messages, setMessages] = useState<Message[]>(saved.messages);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [agentInfo, setAgentInfo] = useState<string>("");
-  const historyRef = useRef<{ role: string; content: string }[]>([]);
+  const historyRef = useRef<{ role: string; content: string }[]>(saved.history);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // ── Persist messages to sessionStorage on every change ──
+  useEffect(() => {
+    try {
+      // Don't save mid-stream placeholders
+      const toSave = messages.map(m => ({ ...m, streaming: false }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+      sessionStorage.setItem(HISTORY_KEY, JSON.stringify(historyRef.current));
+    } catch { /* storage full or unavailable */ }
+  }, [messages]);
 
   // ── Fetch model info for status hint ──
   useEffect(() => {
@@ -73,6 +100,8 @@ export default function ChatPage() {
     if (streaming && abortRef.current) abortRef.current.abort();
     setMessages([]);
     historyRef.current = [];
+    sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(HISTORY_KEY);
     setInput("");
     setTimeout(() => textareaRef.current?.focus(), 50);
   }, [streaming]);
