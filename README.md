@@ -19,8 +19,7 @@ $u = "https://raw.githubusercontent.com/pengchengxia75-arch/hermes-agent-windows
 安装完成后，额外安装 Web UI 依赖（只需一次）：
 
 ```powershell
-cd $env:LOCALAPPDATA\hermes\hermes-agent
-uv pip install fastapi
+uv pip install fastapi uvicorn --python "$env:LOCALAPPDATA\hermes\hermes-agent\venv\Scripts\python.exe"
 ```
 
 ---
