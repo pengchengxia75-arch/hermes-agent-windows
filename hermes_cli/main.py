@@ -993,9 +993,46 @@ def cmd_web(args):
         import uvicorn
     except ImportError as e:
         missing = "fastapi" if "fastapi" in str(e) else "uvicorn"
-        print(f"Web UI requires fastapi and uvicorn (missing: {missing}).")
-        print("Run:  uv pip install fastapi uvicorn")
-        return
+        print(f"Web UI 缺少依赖（{missing}），正在自动安装...")
+        import subprocess, sys
+        try:
+            venv_python = str(Path(sys.executable))
+            result = subprocess.run(
+                ["uv", "pip", "install", "fastapi", "uvicorn", "--python", venv_python],
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr or result.stdout)
+            print("依赖安装成功，正在启动 Web UI...")
+            import fastapi  # noqa: F401
+            import uvicorn
+        except Exception as install_err:
+            print(f"自动安装失败：{install_err}")
+            print(f"请手动运行：uv pip install fastapi uvicorn --python \"{venv_python}\"")
+            return
+
+    # Auto-enable api_server platform in config.yaml if not already set
+    try:
+        from hermes_constants import get_hermes_home
+        import yaml as _yaml
+        config_path = get_hermes_home().parent / "config.yaml"
+        if not config_path.exists():
+            config_path = get_hermes_home() / "config.yaml"
+        if config_path.exists():
+            cfg = _yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            platforms = cfg.setdefault("platforms", {})
+            api_srv = platforms.setdefault("api_server", {})
+            if not api_srv.get("enabled"):
+                api_srv["enabled"] = True
+                config_path.write_text(
+                    _yaml.dump(cfg, allow_unicode=True, default_flow_style=False),
+                    encoding="utf-8",
+                )
+                print("已自动在 config.yaml 启用 api_server 平台。")
+                print("如果 Gateway 已在运行，请重启：hermes gateway run")
+                print()
+    except Exception:
+        pass  # 配置写入失败不影响 Web UI 启动
 
     url = f"http://{host}:{port}"
     print(f"Hermes Web UI: {url}")
