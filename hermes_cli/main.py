@@ -989,10 +989,12 @@ def cmd_web(args):
     no_open = getattr(args, "no_open", False)
 
     try:
+        import fastapi  # noqa: F401
         import uvicorn
-    except ImportError:
-        print("Web UI requires fastapi and uvicorn.")
-        print("Run:  uv pip install fastapi")
+    except ImportError as e:
+        missing = "fastapi" if "fastapi" in str(e) else "uvicorn"
+        print(f"Web UI requires fastapi and uvicorn (missing: {missing}).")
+        print("Run:  uv pip install fastapi uvicorn")
         return
 
     url = f"http://{host}:{port}"
@@ -2397,6 +2399,22 @@ def _model_flow_kimi(config, current_model=""):
     else:
         print(f"  {pconfig.name} API key: {existing_key[:8]}... ✓")
         print()
+        if key_env:
+            try:
+                change = input("  Change API key? [y/N]: ").strip().lower()
+            except (KeyboardInterrupt, EOFError):
+                change = ""
+            if change == "y":
+                try:
+                    import getpass
+                    new_key = getpass.getpass(f"  {key_env} (or Enter to keep current): ").strip()
+                except (KeyboardInterrupt, EOFError):
+                    new_key = ""
+                if new_key:
+                    save_env_value(key_env, new_key)
+                    existing_key = new_key
+                    print("  API key updated.")
+                    print()
 
     # Step 2: Auto-detect endpoint from key prefix
     is_coding_plan = existing_key.startswith("sk-kimi-")
@@ -2491,6 +2509,22 @@ def _model_flow_api_key_provider(config, provider_id, current_model=""):
     else:
         print(f"  {pconfig.name} API key: {existing_key[:8]}... ✓")
         print()
+        if key_env:
+            try:
+                change = input("  Change API key? [y/N]: ").strip().lower()
+            except (KeyboardInterrupt, EOFError):
+                change = ""
+            if change == "y":
+                try:
+                    import getpass
+                    new_key = getpass.getpass(f"  {key_env} (or Enter to keep current): ").strip()
+                except (KeyboardInterrupt, EOFError):
+                    new_key = ""
+                if new_key:
+                    save_env_value(key_env, new_key)
+                    existing_key = new_key
+                    print("  API key updated.")
+                    print()
 
     # Optional base URL override
     current_base = ""
@@ -2704,7 +2738,7 @@ def _model_flow_anthropic(config, current_model=""):
             print("  Claude Code credentials: ✓ (auto-detected)")
         print()
         print("    1. Use existing credentials")
-        print("    2. Reauthenticate (new OAuth login)")
+        print("    2. Change credentials (new API key or OAuth login)")
         print("    3. Cancel")
         print()
         try:
