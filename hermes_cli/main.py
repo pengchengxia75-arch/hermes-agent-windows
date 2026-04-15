@@ -863,6 +863,35 @@ def cmd_setup(args):
     run_setup_wizard(args)
 
 
+def cmd_web(args):
+    """Launch the Hermes Agent Web UI dashboard."""
+    port = getattr(args, "port", 9119)
+    host = getattr(args, "host", "127.0.0.1")
+    no_open = getattr(args, "no_open", False)
+
+    try:
+        import uvicorn
+    except ImportError:
+        print("❌ Web UI requires fastapi and uvicorn.")
+        print("   Run:  pip install fastapi uvicorn")
+        return
+
+    url = f"http://{host}:{port}"
+    print(f"Hermes Web UI: {url}")
+
+    if not no_open:
+        import threading, webbrowser
+        # Open browser after a short delay so server has time to start
+        def _open():
+            import time; time.sleep(1.2)
+            webbrowser.open(url)
+        threading.Thread(target=_open, daemon=True).start()
+
+    from hermes_cli.web_server import app, mount_spa
+    mount_spa(app)
+    uvicorn.run(app, host=host, port=port, log_level="warning")
+
+
 def cmd_model(args):
     """Select default model — starts with provider selection, then model picker."""
     _require_tty("model")
@@ -4536,6 +4565,29 @@ For more help on a command:
         help="Reset configuration to defaults"
     )
     setup_parser.set_defaults(func=cmd_setup)
+
+    # =========================================================================
+    # web command
+    # =========================================================================
+    web_parser = subparsers.add_parser(
+        "web",
+        help="Start the Web UI dashboard (http://127.0.0.1:9119)",
+        description="Launch the Hermes Agent web dashboard. "
+                    "Opens in your browser at http://127.0.0.1:9119"
+    )
+    web_parser.add_argument(
+        "--port", type=int, default=9119,
+        help="Port to listen on (default: 9119)"
+    )
+    web_parser.add_argument(
+        "--host", default="127.0.0.1",
+        help="Host to bind to (default: 127.0.0.1)"
+    )
+    web_parser.add_argument(
+        "--no-open", action="store_true",
+        help="Don't open browser automatically"
+    )
+    web_parser.set_defaults(func=cmd_web)
 
     # =========================================================================
     # whatsapp command

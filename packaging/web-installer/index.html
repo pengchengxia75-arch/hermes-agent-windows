@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermes 安装向导</title>
+<style>
+  :root {
+    --primary: #6366f1;
+    --primary-hover: #4f46e5;
+    --primary-light: #e0e7ff;
+    --success: #22c55e;
+    --error: #ef4444;
+    --warning: #f59e0b;
+    --bg: #0f172a;
+    --bg-card: #1e293b;
+    --bg-input: #334155;
+    --border: #475569;
+    --text: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  /* ===== Header ===== */
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .header h1 span { color: var(--primary); }
+  .header p {
+    color: var(--text-secondary);
+    margin-top: 8px;
+    font-size: 14px;
+  }
+
+  /* ===== Stepper ===== */
+  .stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 32px;
+    width: 100%;
+    max-width: 520px;
+  }
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .step-circle {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--bg-input);
+    color: var(--text-muted);
+    border: 2px solid var(--border);
+    transition: all 0.3s;
+    flex-shrink: 0;
+  }
+  .step-item.active .step-circle {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+  .step-item.done .step-circle {
+    background: var(--success);
+    color: #fff;
+    border-color: var(--success);
+  }
+  .step-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    transition: color 0.3s;
+  }
+  .step-item.active .step-label,
+  .step-item.done .step-label { color: var(--text); }
+  .step-line {
+    flex: 1;
+    height: 2px;
+    background: var(--border);
+    margin: 0 12px;
+    min-width: 40px;
+    transition: background 0.3s;
+  }
+  .step-line.done { background: var(--success); }
+
+  /* ===== Card ===== */
+  .card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 600px;
+    padding: 32px;
+    border: 1px solid var(--border);
+  }
+  .card-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .card-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+  }
+
+  /* ===== Step panels ===== */
+  .step-panel { display: none; }
+  .step-panel.active { display: block; }
+
+  /* ===== Dep list ===== */
+  .dep-list { display: flex; flex-direction: column; gap: 12px; }
+  .dep-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+  }
+  .dep-left { display: flex; align-items: center; gap: 12px; }
+  .dep-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    background: var(--bg-input);
+  }
+  .dep-name { font-size: 14px; font-weight: 500; }
+  .dep-version { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .dep-status {
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+  .dep-status.ok { color: var(--success); background: rgba(34,197,94,0.1); }
+  .dep-status.missing { color: var(--error); background: rgba(239,68,68,0.1); }
+  .dep-status.checking { color: var(--warning); background: rgba(245,158,11,0.1); }
+  .dep-status.installing { color: var(--primary); background: rgba(99,102,241,0.1); }
+  .dep-status.pending { color: var(--text-muted); background: rgba(100,116,139,0.1); }
+
+  /* ===== Log box ===== */
+  .log-box {
+    background: #0c0e14;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-top: 16px;
+    max-height: 180px;
+    overflow-y: auto;
+    font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    display: none;
+  }
+  .log-box.visible { display: block; }
+  .log-box .log-line { white-space: pre-wrap; word-break: break-all; }
+  .log-box .log-ok { color: var(--success); }
+  .log-box .log-err { color: var(--error); }
+  .log-box .log-info { color: var(--primary); }
+
+  /* ===== Progress bar ===== */
+  .progress-wrap {
+    background: var(--bg);
+    border-radius: 20px;
+    height: 8px;
+    margin-top: 16px;
+    overflow: hidden;
+    display: none;
+  }
+  .progress-wrap.visible { display: block; }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), #818cf8);
+    border-radius: 20px;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+  .progress-text {
+    text-align: right;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    display: none;
+  }
+  .progress-text.visible { display: block; }
+
+  /* ===== Config form ===== */
+  .form-group { margin-bottom: 20px; }
+  .form-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: var(--text-secondary);
+  }
+  .form-select, .form-input {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    font-family: inherit;
+  }
+  .form-select:focus, .form-input:focus {
+    border-color: var(--primary);
+  }
+  .form-select option { background: var(--bg-card); }
+  .form-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  /* Checkbox group */
+  .checkbox-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    user-select: none;
+  }
+  .checkbox-item:hover { border-color: var(--primary); }
+  .checkbox-item.selected {
+    border-color: var(--primary);
+    background: rgba(99,102,241,0.08);
+  }
+  .checkbox-item input { display: none; }
+  .check-box {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .checkbox-item.selected .check-box {
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+  .check-box svg { display: none; }
+  .checkbox-item.selected .check-box svg { display: block; }
+
+  /* Radio group */
+  .radio-group { display: flex; gap: 12px; }
+  .radio-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    user-select: none;
+  }
+  .radio-item:hover { border-color: var(--primary); }
+  .radio-item.selected {
+    border-color: var(--primary);
+    background: rgba(99,102,241,0.08);
+  }
+  .radio-item input { display: none; }
+  .radio-dot {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .radio-item.selected .radio-dot {
+    border-color: var(--primary);
+  }
+  .radio-dot-inner {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: transparent;
+    transition: background 0.2s;
+  }
+  .radio-item.selected .radio-dot-inner {
+    background: var(--primary);
+  }
+
+  /* ===== Buttons ===== */
+  .btn-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 28px;
+    gap: 12px;
+  }
+  .btn {
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-secondary {
+    background: var(--bg-input);
+    color: var(--text-secondary);
+  }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-success {
+    background: var(--success);
+    color: #fff;
+  }
+  .btn-success:hover { background: #16a34a; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+  .btn-ghost:hover { color: var(--text); }
+  .spacer { flex: 1; }
+
+  /* ===== Done page ===== */
+  .done-icon {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: rgba(34,197,94,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+  }
+  .done-icon svg { color: var(--success); }
+  .done-title {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .done-desc {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  .done-cmd {
+    background: #0c0e14;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+    font-size: 15px;
+    color: var(--success);
+    margin-bottom: 8px;
+  }
+  .done-cmd-hint {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* ===== Animations ===== */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .step-panel.active { animation: fadeIn 0.3s ease; }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: inline-block;
+  }
+
+  /* ===== Scrollbar ===== */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <h1>&#x2B21; <span>Hermes</span> 安装向导</h1>
+  <p>Windows 版一站式安装与配置</p>
+</div>
+
+<!-- Stepper -->
+<div class="stepper">
+  <div class="step-item active" data-step="1">
+    <div class="step-circle">1</div>
+    <span class="step-label">环境检查</span>
+  </div>
+  <div class="step-line" id="line-1-2"></div>
+  <div class="step-item" data-step="2">
+    <div class="step-circle">2</div>
+    <span class="step-label">安装 Hermes</span>
+  </div>
+  <div class="step-line" id="line-2-3"></div>
+  <div class="step-item" data-step="3">
+    <div class="step-circle">3</div>
+    <span class="step-label">基础配置</span>
+  </div>
+</div>
+
+<!-- Card -->
+<div class="card">
+
+  <!-- ==================== Step 1: 环境检查 ==================== -->
+  <div class="step-panel active" id="panel-1">
+    <div class="card-title">环境依赖检查</div>
+    <div class="card-desc">检测当前系统是否已安装 Hermes 所需的运行环境，缺失项将自动安装。</div>
+
+    <div class="dep-list" id="dep-list">
+      <div class="dep-item" data-dep="python">
+        <div class="dep-left">
+          <div class="dep-icon">&#x1F40D;</div>
+          <div>
+            <div class="dep-name">Python</div>
+            <div class="dep-version">需要 3.11 或以上</div>
+          </div>
+        </div>
+        <div class="dep-status pending">待检查</div>
+      </div>
+
+      <div class="dep-item" data-dep="node">
+        <div class="dep-left">
+          <div class="dep-icon">&#x2B22;</div>
+          <div>
+            <div class="dep-name">Node.js</div>
+            <div class="dep-version">需要 18.0 或以上</div>
+          </div>
+        </div>
+        <div class="dep-status pending">待检查</div>
+      </div>
+
+      <div class="dep-item" data-dep="git">
+        <div class="dep-left">
+          <div class="dep-icon">&#x1F500;</div>
+          <div>
+            <div class="dep-name">Git</div>
+            <div class="dep-version">版本管理工具</div>
+          </div>
+        </div>
+        <div class="dep-status pending">待检查</div>
+      </div>
+
+      <div class="dep-item" data-dep="uv">
+        <div class="dep-left">
+          <div class="dep-icon">&#x26A1;</div>
+          <div>
+            <div class="dep-name">uv</div>
+            <div class="dep-version">Python 包管理器</div>
+          </div>
+        </div>
+        <div class="dep-status pending">待检查</div>
+      </div>
+    </div>
+
+    <div class="log-box" id="log-step1">
+      <div class="log-line log-info">&gt; 正在检查系统环境...</div>
+    </div>
+
+    <div class="btn-row">
+      <div class="spacer"></div>
+      <button class="btn btn-secondary" id="btn-check" onclick="simulateCheck()">开始检查</button>
+      <button class="btn btn-primary" id="btn-install-deps" style="display:none" onclick="simulateInstallDeps()">一键安装缺失依赖</button>
+      <button class="btn btn-primary" id="btn-next-1" style="display:none" onclick="goStep(2)">下一步 &rarr;</button>
+    </div>
+  </div>
+
+  <!-- ==================== Step 2: 安装 Hermes ==================== -->
+  <div class="step-panel" id="panel-2">
+    <div class="card-title">安装 Hermes</div>
+    <div class="card-desc">从 GitHub 下载并安装 Hermes 到本地系统。</div>
+
+    <div class="form-group">
+      <label class="form-label">安装目录</label>
+      <input class="form-input" id="install-path" type="text" value="C:\Users\xpc\.hermes" />
+      <div class="form-hint">建议使用默认路径，不要包含中文或空格</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">安装来源</label>
+      <div class="radio-group">
+        <label class="radio-item selected" onclick="selectRadio(this)">
+          <input type="radio" name="source" value="github" checked>
+          <div class="radio-dot"><div class="radio-dot-inner"></div></div>
+          GitHub
+        </label>
+        <label class="radio-item" onclick="selectRadio(this)">
+          <input type="radio" name="source" value="local">
+          <div class="radio-dot"><div class="radio-dot-inner"></div></div>
+          本地文件
+        </label>
+      </div>
+    </div>
+
+    <div class="progress-wrap" id="progress-step2">
+      <div class="progress-bar" id="pbar-step2"></div>
+    </div>
+    <div class="progress-text" id="ptext-step2">0%</div>
+
+    <div class="log-box" id="log-step2"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="goStep(1)">&larr; 上一步</button>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="btn-install" onclick="simulateInstall()">开始安装</button>
+      <button class="btn btn-primary" id="btn-next-2" style="display:none" onclick="goStep(3)">下一步 &rarr;</button>
+    </div>
+  </div>
+
+  <!-- ==================== Step 3: 基础配置 ==================== -->
+  <div class="step-panel" id="panel-3">
+    <div class="card-title">基础配置</div>
+    <div class="card-desc">配置模型服务商和常用选项，稍后也可在命令行通过 <code>hermes setup</code> 修改。</div>
+
+    <!-- Provider -->
+    <div class="form-group">
+      <label class="form-label">模型服务商</label>
+      <select class="form-select" id="cfg-provider" onchange="onProviderChange()">
+        <option value="openrouter">OpenRouter（推荐，支持多模型）</option>
+        <option value="anthropic">Anthropic</option>
+        <option value="openai">OpenAI</option>
+        <option value="deepseek">DeepSeek</option>
+        <option value="minimax">MiniMax</option>
+        <option value="custom">自定义 / 其他</option>
+      </select>
+    </div>
+
+    <!-- Custom provider fields (hidden by default) -->
+    <div id="custom-provider-fields" style="display:none">
+      <div class="form-group">
+        <label class="form-label">API 地址 (Base URL)</label>
+        <input class="form-input" id="cfg-base-url" type="text" placeholder="例如: https://api.example.com/v1" />
+        <div class="form-hint">自定义服务商的 API 接口地址</div>
+      </div>
+    </div>
+
+    <!-- API Key -->
+    <div class="form-group">
+      <label class="form-label" id="apikey-label">API Key</label>
+      <input class="form-input" id="cfg-apikey" type="password" placeholder="请粘贴你的 API Key" />
+      <div class="form-hint">你的密钥仅保存在本地，不会上传到任何服务器</div>
+    </div>
+
+    <!-- Model + Backend -->
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">默认模型</label>
+        <select class="form-select" id="cfg-model"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">终端后端</label>
+        <select class="form-select" id="cfg-backend">
+          <option value="local">本地 (推荐)</option>
+          <option value="docker">Docker</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Custom model ID (hidden by default) -->
+    <div id="custom-model-field" style="display:none">
+      <div class="form-group">
+        <label class="form-label">模型 ID</label>
+        <input class="form-input" id="cfg-model-id" type="text" placeholder="例如: my-provider/my-model-v1" />
+        <div class="form-hint">填写自定义模型的完整标识符</div>
+      </div>
+    </div>
+
+    <!-- Platforms -->
+    <div class="form-group">
+      <label class="form-label">消息平台（可选，后续也可配置）</label>
+      <div class="checkbox-group">
+        <label class="checkbox-item" onclick="toggleCheck(this)">
+          <input type="checkbox" value="feishu">
+          <div class="check-box">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          飞书
+        </label>
+        <label class="checkbox-item" onclick="toggleCheck(this)">
+          <input type="checkbox" value="wechat-work">
+          <div class="check-box">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          企业微信
+        </label>
+        <label class="checkbox-item" onclick="toggleCheck(this)">
+          <input type="checkbox" value="qq">
+          <div class="check-box">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          QQ
+        </label>
+        <label class="checkbox-item" onclick="toggleCheck(this)">
+          <input type="checkbox" value="telegram">
+          <div class="check-box">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          Telegram
+        </label>
+        <label class="checkbox-item" onclick="toggleCheck(this)">
+          <input type="checkbox" value="discord">
+          <div class="check-box">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          Discord
+        </label>
+        <label class="checkbox-item" onclick="toggleCheck(this)">
+          <input type="checkbox" value="slack">
+          <div class="check-box">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          Slack
+        </label>
+      </div>
+
+      <div class="form-label" style="margin-top: 16px; margin-bottom: 8px; color: var(--text-muted); font-size: 12px;">以下平台待后续开发完成</div>
+      <div class="checkbox-group">
+        <label class="checkbox-item" style="opacity: 0.4; pointer-events: none;">
+          <input type="checkbox" disabled>
+          <div class="check-box"></div>
+          钉钉
+          <span style="font-size:11px; color:var(--text-muted); margin-left:auto;">开发中</span>
+        </label>
+        <label class="checkbox-item" style="opacity: 0.4; pointer-events: none;">
+          <input type="checkbox" disabled>
+          <div class="check-box"></div>
+          个人微信
+          <span style="font-size:11px; color:var(--text-muted); margin-left:auto;">开发中</span>
+        </label>
+        <label class="checkbox-item" style="opacity: 0.4; pointer-events: none;">
+          <input type="checkbox" disabled>
+          <div class="check-box"></div>
+          WhatsApp
+          <span style="font-size:11px; color:var(--text-muted); margin-left:auto;">开发中</span>
+        </label>
+        <label class="checkbox-item" style="opacity: 0.4; pointer-events: none;">
+          <input type="checkbox" disabled>
+          <div class="check-box"></div>
+          Signal
+          <span style="font-size:11px; color:var(--text-muted); margin-left:auto;">开发中</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="goStep(2)">&larr; 上一步</button>
+      <div class="spacer"></div>
+      <button class="btn btn-success" onclick="goStep(4)">保存配置并完成</button>
+    </div>
+  </div>
+
+  <!-- ==================== Step 4: 完成 ==================== -->
+  <div class="step-panel" id="panel-4">
+    <div class="done-icon">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 6L9 17l-5-5"/>
+      </svg>
+    </div>
+    <div class="done-title">安装完成！</div>
+    <div class="done-desc">
+      Hermes 已成功安装并配置完毕。<br>
+      现在你可以关闭此页面，打开命令行终端开始使用。
+    </div>
+    <div class="done-cmd">hermes</div>
+    <div class="done-cmd-hint">在终端中输入上方命令即可启动 Hermes</div>
+
+    <div class="btn-row" style="justify-content: center; margin-top: 32px;">
+      <button class="btn btn-primary" onclick="window.close()">关闭安装向导</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ===== Provider → Model mapping =====
+  // Model data sourced from hermes_cli/models.py
+  const providerModels = {
+    openrouter: [
+      { id: 'anthropic/claude-opus-4.6', name: 'Claude Opus 4.6 (推荐)' },
+      { id: 'anthropic/claude-sonnet-4.6', name: 'Claude Sonnet 4.6' },
+      { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5' },
+      { id: 'anthropic/claude-haiku-4.5', name: 'Claude Haiku 4.5' },
+      { id: 'openai/gpt-5.4', name: 'GPT-5.4' },
+      { id: 'openai/gpt-5.4-mini', name: 'GPT-5.4 Mini' },
+      { id: 'google/gemini-3-pro-preview', name: 'Gemini 3 Pro' },
+      { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash' },
+      { id: 'minimax/minimax-m2.7', name: 'MiniMax M2.7' },
+      { id: 'minimax/minimax-m2.5', name: 'MiniMax M2.5' },
+      { id: 'z-ai/glm-5.1', name: 'GLM 5.1' },
+      { id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5' },
+      { id: 'x-ai/grok-4.20-beta', name: 'Grok 4.20 Beta' },
+      { id: 'qwen/qwen3.6-plus:free', name: 'Qwen 3.6 Plus (免费)' },
+    ],
+    anthropic: [
+      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
+      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
+      { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5' },
+      { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' },
+      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
+    ],
+    openai: [
+      { id: 'gpt-5.4', name: 'GPT-5.4' },
+      { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini' },
+      { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro' },
+      { id: 'gpt-5.4-nano', name: 'GPT-5.4 Nano' },
+      { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex' },
+      { id: 'gpt-4.1', name: 'GPT-4.1' },
+      { id: 'gpt-4o', name: 'GPT-4o' },
+    ],
+    deepseek: [
+      { id: 'deepseek-chat', name: 'DeepSeek Chat (V3)' },
+      { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner (R1)' },
+    ],
+    minimax: [
+      { id: 'MiniMax-M2.7', name: 'MiniMax M2.7 (推荐)' },
+      { id: 'MiniMax-M2.5', name: 'MiniMax M2.5' },
+      { id: 'MiniMax-M1', name: 'MiniMax M1' },
+      { id: 'MiniMax-M1-40k', name: 'MiniMax M1 40K' },
+      { id: 'MiniMax-M1-80k', name: 'MiniMax M1 80K' },
+      { id: 'MiniMax-M1-128k', name: 'MiniMax M1 128K' },
+      { id: 'MiniMax-M1-256k', name: 'MiniMax M1 256K' },
+    ],
+    custom: [
+      { id: '__custom__', name: '手动输入模型 ID（见下方）' },
+    ],
+  };
+
+  const providerApiKeyHints = {
+    openrouter: '在 openrouter.ai/keys 获取',
+    anthropic: '在 console.anthropic.com 获取',
+    openai: '在 platform.openai.com/api-keys 获取',
+    deepseek: '在 platform.deepseek.com 获取',
+    minimax: '在 minimax.chat 控制台获取',
+    custom: '填写自定义服务商的 API Key',
+  };
+
+  function onProviderChange() {
+    const provider = document.getElementById('cfg-provider').value;
+    const modelSelect = document.getElementById('cfg-model');
+    const customFields = document.getElementById('custom-provider-fields');
+    const customModelField = document.getElementById('custom-model-field');
+    const apiKeyInput = document.getElementById('cfg-apikey');
+
+    // Update model dropdown
+    const models = providerModels[provider] || [];
+    modelSelect.innerHTML = '';
+    models.forEach((m, i) => {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.name;
+      if (i === 0) opt.selected = true;
+      modelSelect.appendChild(opt);
+    });
+
+    // Show/hide custom fields
+    customFields.style.display = provider === 'custom' ? 'block' : 'none';
+    customModelField.style.display = provider === 'custom' ? 'block' : 'none';
+
+    // Update API Key placeholder
+    apiKeyInput.placeholder = providerApiKeyHints[provider] || '请粘贴你的 API Key';
+
+    // Listen for model change to show custom model ID field
+    modelSelect.onchange = function() {
+      customModelField.style.display = modelSelect.value === '__custom__' ? 'block' : 'none';
+    };
+  }
+
+  // ===== Step navigation =====
+  let currentStep = 1;
+
+  function goStep(n) {
+    // Hide current
+    document.getElementById('panel-' + currentStep)?.classList.remove('active');
+    // Show target
+    document.getElementById('panel-' + n)?.classList.add('active');
+
+    // Update stepper
+    document.querySelectorAll('.step-item').forEach(el => {
+      const s = parseInt(el.dataset.step);
+      el.classList.remove('active', 'done');
+      if (s < n) el.classList.add('done');
+      else if (s === n) el.classList.add('active');
+    });
+
+    // Update lines
+    document.getElementById('line-1-2').classList.toggle('done', n > 1);
+    document.getElementById('line-2-3').classList.toggle('done', n > 2);
+
+    // Update done checkmarks
+    document.querySelectorAll('.step-item.done .step-circle').forEach(el => {
+      el.textContent = '\u2713';
+    });
+    document.querySelectorAll('.step-item:not(.done) .step-circle').forEach(el => {
+      el.textContent = el.closest('.step-item').dataset.step;
+    });
+
+    currentStep = n;
+  }
+
+  // ===== Step 1: Simulate environment check =====
+  function simulateCheck() {
+    const btn = document.getElementById('btn-check');
+    btn.disabled = true;
+    btn.textContent = '检查中...';
+
+    const logBox = document.getElementById('log-step1');
+    logBox.classList.add('visible');
+
+    const deps = [
+      { key: 'python', ok: true, ver: '3.13.1' },
+      { key: 'node', ok: false, ver: null },
+      { key: 'git', ok: true, ver: '2.44.0' },
+      { key: 'uv', ok: false, ver: null },
+    ];
+
+    // First set all to "检查中" with spinner
+    deps.forEach(dep => {
+      const item = document.querySelector(`.dep-item[data-dep="${dep.key}"]`);
+      const statusEl = item.querySelector('.dep-status');
+      statusEl.className = 'dep-status checking';
+      statusEl.innerHTML = '<span class="spinner"></span> 检查中';
+    });
+
+    let i = 0;
+    const timer = setInterval(() => {
+      if (i >= deps.length) {
+        clearInterval(timer);
+        btn.style.display = 'none';
+
+        const hasMissing = deps.some(d => !d.ok);
+        if (hasMissing) {
+          document.getElementById('btn-install-deps').style.display = '';
+          addLog('log-step1', '发现缺失依赖，请点击「一键安装」继续', 'err');
+        } else {
+          document.getElementById('btn-next-1').style.display = '';
+          addLog('log-step1', '所有依赖已就绪！', 'ok');
+        }
+        return;
+      }
+
+      const dep = deps[i];
+      const item = document.querySelector(`.dep-item[data-dep="${dep.key}"]`);
+      const statusEl = item.querySelector('.dep-status');
+
+      if (dep.ok) {
+        statusEl.className = 'dep-status ok';
+        statusEl.innerHTML = '\u2713 已安装 (' + dep.ver + ')';
+        item.querySelector('.dep-version').textContent = '已安装 v' + dep.ver;
+        addLog('log-step1', '\u2713 ' + item.querySelector('.dep-name').textContent + ' v' + dep.ver, 'ok');
+      } else {
+        statusEl.className = 'dep-status missing';
+        statusEl.innerHTML = '\u2717 未安装';
+        addLog('log-step1', '\u2717 ' + item.querySelector('.dep-name').textContent + ' 未安装', 'err');
+      }
+
+      i++;
+    }, 600);
+  }
+
+  // ===== Step 1: Simulate installing missing deps =====
+  function simulateInstallDeps() {
+    const btn = document.getElementById('btn-install-deps');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> 安装中...';
+
+    const missing = document.querySelectorAll('.dep-status.missing');
+    let i = 0;
+
+    addLog('log-step1', '');
+    addLog('log-step1', '开始安装缺失依赖...', 'info');
+
+    const timer = setInterval(() => {
+      if (i >= missing.length) {
+        clearInterval(timer);
+        btn.style.display = 'none';
+        document.getElementById('btn-next-1').style.display = '';
+        addLog('log-step1', '');
+        addLog('log-step1', '所有依赖安装完成！', 'ok');
+        return;
+      }
+
+      const statusEl = missing[i];
+      const item = statusEl.closest('.dep-item');
+      const name = item.querySelector('.dep-name').textContent;
+
+      statusEl.className = 'dep-status installing';
+      statusEl.innerHTML = '<span class="spinner"></span> 安装中';
+      addLog('log-step1', '> 正在下载并安装 ' + name + '...', 'info');
+
+      setTimeout(() => {
+        statusEl.className = 'dep-status ok';
+        statusEl.innerHTML = '\u2713 已安装';
+        addLog('log-step1', '\u2713 ' + name + ' 安装成功', 'ok');
+      }, 1200);
+
+      i++;
+    }, 1800);
+  }
+
+  // ===== Step 2: Simulate Hermes install =====
+  function simulateInstall() {
+    const btn = document.getElementById('btn-install');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> 安装中...';
+
+    const logBox = document.getElementById('log-step2');
+    const progressWrap = document.getElementById('progress-step2');
+    const pbar = document.getElementById('pbar-step2');
+    const ptext = document.getElementById('ptext-step2');
+
+    logBox.classList.add('visible');
+    progressWrap.classList.add('visible');
+    ptext.classList.add('visible');
+
+    const steps = [
+      { msg: '> git clone https://github.com/hermes-agent/hermes-agent-windows.git ...', pct: 15 },
+      { msg: '> 正在下载仓库文件...', pct: 30 },
+      { msg: '\u2713 仓库克隆完成', pct: 35, cls: 'ok' },
+      { msg: '> uv venv .venv --python 3.13 ...', pct: 40 },
+      { msg: '\u2713 虚拟环境创建完成', pct: 45, cls: 'ok' },
+      { msg: '> uv pip install -e . ...', pct: 50 },
+      { msg: '> 正在安装 Python 依赖包 (这可能需要几分钟)...', pct: 65 },
+      { msg: '> 正在安装 anthropic, openai, rich, prompt-toolkit ...', pct: 78 },
+      { msg: '\u2713 Python 依赖安装完成 (142 个包)', pct: 85, cls: 'ok' },
+      { msg: '> npm install ...', pct: 90 },
+      { msg: '\u2713 Node.js 依赖安装完成', pct: 95, cls: 'ok' },
+      { msg: '> 配置系统 PATH 环境变量 ...', pct: 98 },
+      { msg: '\u2713 Hermes 安装完成！', pct: 100, cls: 'ok' },
+    ];
+
+    let i = 0;
+    const timer = setInterval(() => {
+      if (i >= steps.length) {
+        clearInterval(timer);
+        btn.style.display = 'none';
+        document.getElementById('btn-next-2').style.display = '';
+        return;
+      }
+      const s = steps[i];
+      addLog('log-step2', s.msg, s.cls || '');
+      pbar.style.width = s.pct + '%';
+      ptext.textContent = s.pct + '%';
+      i++;
+    }, 800);
+  }
+
+  // ===== Helpers =====
+  function addLog(boxId, text, cls) {
+    const box = document.getElementById(boxId);
+    const line = document.createElement('div');
+    line.className = 'log-line' + (cls ? ' log-' + cls : '');
+    line.textContent = text;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function toggleCheck(el) {
+    el.classList.toggle('selected');
+    const cb = el.querySelector('input');
+    cb.checked = el.classList.contains('selected');
+  }
+
+  function selectRadio(el) {
+    const group = el.closest('.radio-group');
+    group.querySelectorAll('.radio-item').forEach(r => r.classList.remove('selected'));
+    el.classList.add('selected');
+    el.querySelector('input').checked = true;
+  }
+
+  // Initialize model dropdown on page load
+  onProviderChange();
+</script>
+
+</body>
+</html>

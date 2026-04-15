@@ -371,6 +371,28 @@ def get_running_pid() -> Optional[int]:
     except (ProcessLookupError, PermissionError):
         remove_pid_file()
         return None
+    except OSError:
+        # Windows may raise OSError (e.g. WinError 11) for stale/invalid PIDs
+        import sys as _sys
+        if _sys.platform == "win32":
+            # Fall back to psutil / tasklist to verify existence
+            try:
+                import psutil
+                if not psutil.pid_exists(pid):
+                    remove_pid_file()
+                    return None
+            except ImportError:
+                import subprocess
+                result = subprocess.run(
+                    ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                    capture_output=True, text=True
+                )
+                if str(pid) not in result.stdout:
+                    remove_pid_file()
+                    return None
+        else:
+            remove_pid_file()
+            return None
 
     recorded_start = record.get("start_time")
     current_start = _get_process_start_time(pid)

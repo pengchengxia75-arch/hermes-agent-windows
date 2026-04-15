@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Agent Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">⚕</div>
+      <div>
+        <div class="logo-text">Hermes Agent</div>
+        <div class="logo-sub">Dashboard</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-page="chat" data-label="对话" onclick="navigate('chat')">
+        <span class="nav-icon">💬</span>
+        <span class="nav-label">对话</span>
+      </div>
+      <div class="nav-item" data-page="overview" data-label="概览" onclick="navigate('overview')">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">概览</span>
+      </div>
+
+      <div class="nav-section-label">管理</div>
+      <div class="nav-item" data-page="sessions" data-label="会话记录" onclick="navigate('sessions')">
+        <span class="nav-icon">🗂️</span>
+        <span class="nav-label">会话记录</span>
+      </div>
+      <div class="nav-item" data-page="memory" data-label="记忆管理" onclick="navigate('memory')">
+        <span class="nav-icon">🧠</span>
+        <span class="nav-label">记忆管理</span>
+      </div>
+      <div class="nav-item" data-page="tasks" data-label="计划任务" onclick="navigate('tasks')">
+        <span class="nav-icon">⏰</span>
+        <span class="nav-label">计划任务</span>
+        <span class="nav-badge">5</span>
+      </div>
+      <div class="nav-item" data-page="skills" data-label="技能库" onclick="navigate('skills')">
+        <span class="nav-icon">🧩</span>
+        <span class="nav-label">技能库</span>
+      </div>
+
+      <div class="nav-section-label">系统</div>
+      <div class="nav-item" data-page="config" data-label="配置管理" onclick="navigate('config')">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">配置管理</span>
+      </div>
+      <div class="nav-item" data-page="logs" data-label="系统日志" onclick="navigate('logs')">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">系统日志</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="nav-item" data-label="折叠侧栏" onclick="toggleSidebar()">
+        <span class="nav-icon">◀</span>
+        <span class="nav-label">折叠侧栏</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <div class="main">
+
+    <!-- ====== CHAT PAGE ====== -->
+    <div id="page-chat" class="page active" style="flex-direction:row">
+
+      <!-- History panel -->
+      <div class="history-panel" id="history-panel">
+        <div class="history-header">
+          <span>对话历史</span>
+          <button class="btn btn-ghost btn-icon" title="新建对话" onclick="newChat()">✚</button>
+        </div>
+        <div class="history-search">
+          <input type="text" placeholder="搜索历史对话...">
+        </div>
+        <div class="history-list" id="history-list"></div>
+      </div>
+
+      <!-- Chat main -->
+      <div class="chat-main">
+        <div class="chat-topbar">
+          <span class="chat-topbar-title">Hermes Agent — Web 对话</span>
+          <div class="chat-topbar-actions">
+            <button class="btn btn-ghost btn-icon" title="清空对话">🗑️</button>
+            <button class="btn btn-ghost btn-icon" title="导出对话">📤</button>
+          </div>
+        </div>
+
+        <!-- Welcome / messages -->
+        <div id="chat-welcome" class="chat-welcome">
+          <div class="welcome-icon">⚕</div>
+          <div class="welcome-title">Hermes Agent</div>
+          <div class="welcome-desc">强大的 AI 智能体，支持工具调用、代码执行、网页浏览等能力</div>
+          <div class="quick-actions" id="quick-actions"></div>
+        </div>
+        <div id="chat-messages" class="chat-messages" style="display:none"></div>
+
+        <!-- Input -->
+        <div class="chat-input-area">
+          <div class="chat-input-box">
+            <textarea id="chat-input" rows="1" placeholder="输入消息... (Enter 发送，Shift+Enter 换行)"></textarea>
+            <button class="btn btn-primary btn-icon" onclick="sendMessage()" title="发送">➤</button>
+          </div>
+          <div class="chat-input-hint">由 Kimi K2.5 提供支持 · Web UI 开发中，部分功能为演示数据</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== OVERVIEW PAGE ====== -->
+    <div id="page-overview" class="page">
+      <div class="page-header">
+        <div class="page-title">概览</div>
+        <div class="page-desc">Hermes Agent 运行状态和使用统计</div>
+      </div>
+      <div class="page-content">
+        <div class="stats-grid" id="stats-grid"></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="card">
+            <div class="card-title">系统状态</div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label"><span class="status-dot green"></span>Agent 进程</div>
+                <div class="toggle-desc">PID 13136 · 运行中 · 内存 142MB</div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label"><span class="status-dot green"></span>模型连接</div>
+                <div class="toggle-desc">kimi-k2.5 · api.moonshot.cn · 延迟 320ms</div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label"><span class="status-dot yellow"></span>Gateway 服务</div>
+                <div class="toggle-desc">未启动 · 消息平台功能不可用</div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label"><span class="status-dot green"></span>Cron 调度器</div>
+                <div class="toggle-desc">5 个任务 · 下次执行：08:00 daily-news</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">最近活动</div>
+            <table class="table">
+              <tbody>
+                <tr><td>💬</td><td>生成 PPT 演示文稿</td><td class="text-muted text-sm">15分钟前</td></tr>
+                <tr><td>⏰</td><td>daily-news 任务执行</td><td class="text-muted text-sm">2小时前</td></tr>
+                <tr><td>🧠</td><td>记忆整理完成</td><td class="text-muted text-sm">3小时前</td></tr>
+                <tr><td>⚙️</td><td>配置更新：base_url</td><td class="text-muted text-sm">1天前</td></tr>
+                <tr><td>🧩</td><td>安装技能：pptx</td><td class="text-muted text-sm">2天前</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== SESSIONS PAGE ====== -->
+    <div id="page-sessions" class="page">
+      <div class="page-header">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="page-title">会话记录</div>
+            <div class="page-desc">查看和管理历史对话记录</div>
+          </div>
+          <div class="flex gap-8">
+            <button class="btn btn-ghost">🔍 搜索</button>
+            <button class="btn btn-danger">🗑️ 清空全部</button>
+          </div>
+        </div>
+      </div>
+      <div class="page-content">
+        <div class="card" style="padding:0;overflow:hidden">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>会话标题</th>
+                <th>模型</th>
+                <th>轮次</th>
+                <th>Token 用量</th>
+                <th>时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="sessions-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== MEMORY PAGE ====== -->
+    <div id="page-memory" class="page">
+      <div class="page-header">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="page-title">记忆管理</div>
+            <div class="page-desc">查看和管理 Hermes 的长期记忆</div>
+          </div>
+          <div class="flex gap-8">
+            <button class="btn btn-ghost">➕ 添加记忆</button>
+            <button class="btn btn-danger">🗑️ 清空记忆</button>
+          </div>
+        </div>
+      </div>
+      <div class="page-content">
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="btn btn-primary" style="font-size:12px">全部</button>
+          <button class="btn btn-ghost" style="font-size:12px">用户信息</button>
+          <button class="btn btn-ghost" style="font-size:12px">偏好设置</button>
+          <button class="btn btn-ghost" style="font-size:12px">项目信息</button>
+        </div>
+        <div id="memory-list"></div>
+      </div>
+    </div>
+
+    <!-- ====== TASKS PAGE ====== -->
+    <div id="page-tasks" class="page">
+      <div class="page-header">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="page-title">计划任务</div>
+            <div class="page-desc">管理定时执行的 Cron 任务</div>
+          </div>
+          <button class="btn btn-primary">➕ 新建任务</button>
+        </div>
+      </div>
+      <div class="page-content">
+        <div id="tasks-list"></div>
+      </div>
+    </div>
+
+    <!-- ====== SKILLS PAGE ====== -->
+    <div id="page-skills" class="page">
+      <div class="page-header">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="page-title">技能库</div>
+            <div class="page-desc">管理 Hermes 的工具技能</div>
+          </div>
+          <div class="flex gap-8">
+            <button class="btn btn-ghost">🔍 搜索技能</button>
+            <button class="btn btn-primary">➕ 安装技能</button>
+          </div>
+        </div>
+      </div>
+      <div class="page-content">
+        <div class="skills-grid" id="skills-grid"></div>
+      </div>
+    </div>
+
+    <!-- ====== CONFIG PAGE ====== -->
+    <div id="page-config" class="page">
+      <div class="page-header">
+        <div class="page-title">配置管理</div>
+        <div class="page-desc">管理模型、平台、系统配置</div>
+      </div>
+      <div class="page-content" style="display:grid;grid-template-columns:200px 1fr;gap:20px;align-items:start">
+        <!-- Config nav -->
+        <div class="card config-nav" style="padding:8px;position:sticky;top:0">
+          <div class="nav-item active" data-cfg="model" style="font-size:13px;border-radius:6px" onclick="switchConfigSection('model',this)">🤖 模型与 API</div>
+          <div class="nav-item" data-cfg="platform" style="font-size:13px;border-radius:6px" onclick="switchConfigSection('platform',this)">💬 消息平台</div>
+          <div class="nav-item" data-cfg="terminal" style="font-size:13px;border-radius:6px" onclick="switchConfigSection('terminal',this)">🖥️ 终端环境</div>
+          <div class="nav-item" data-cfg="memory" style="font-size:13px;border-radius:6px" onclick="switchConfigSection('memory',this)">🧠 记忆设置</div>
+          <div class="nav-item" data-cfg="display" style="font-size:13px;border-radius:6px" onclick="switchConfigSection('display',this)">🎨 显示偏好</div>
+          <div class="nav-item" data-cfg="security" style="font-size:13px;border-radius:6px" onclick="switchConfigSection('security',this)">🔒 安全设置</div>
+        </div>
+
+        <!-- Config sections -->
+        <div>
+          <!-- === 模型与 API === -->
+          <div class="config-section active" data-section="model">
+            <div class="card" id="model-config-card">
+              <div class="card-title">🤖 模型与 API</div>
+              <div class="form-group">
+                <label class="form-label">服务商</label>
+                <select class="form-select" id="cfg-provider" onchange="onProviderChange()">
+                  <option value="kimi-coding">Kimi / Moonshot</option>
+                  <option value="minimax-cn">MiniMax (国内)</option>
+                  <option value="minimax">MiniMax (国际)</option>
+                  <option value="openrouter">OpenRouter</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="custom">自定义端点</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">默认模型</label>
+                <div id="cfg-model-wrapper">
+                  <select class="form-select" id="cfg-model"></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">API Key</label>
+                <div style="display:flex;gap:8px">
+                  <input class="form-input" type="password" id="cfg-apikey" placeholder="输入 API Key" style="flex:1">
+                  <button class="btn btn-ghost" style="white-space:nowrap" onclick="toggleApiKeyVis()">👁</button>
+                </div>
+                <div class="form-hint">密钥仅保存在本地 ~/.hermes/.env，不会上传</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Base URL</label>
+                <input class="form-input" type="text" id="cfg-baseurl" placeholder="https://api.example.com/v1">
+              </div>
+              <div class="form-group">
+                <label class="form-label">最大 Token 限制</label>
+                <input class="form-input" type="number" id="cfg-maxtokens" value="128000">
+                <div class="form-hint">超过此限制将自动截断上下文</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Temperature</label>
+                <input class="form-input" type="number" id="cfg-temperature" value="0.7" step="0.1" min="0" max="2">
+              </div>
+              <div id="cfg-save-msg" style="display:none;color:var(--success);font-size:12px;text-align:right;margin-bottom:8px">✓ 已保存</div>
+              <div class="flex gap-8" style="justify-content:flex-end">
+                <button class="btn btn-ghost" onclick="loadModelConfig()">重置</button>
+                <button class="btn btn-primary" onclick="saveModelConfig()">保存配置</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- === 消息平台 === -->
+          <div class="config-section" data-section="platform">
+            <div class="form-hint" style="margin-bottom:12px;padding:10px 14px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border)">
+              启用后，Hermes 将通过 Gateway 服务接收和回复对应平台的消息。点击平台名称展开配置项。
+            </div>
+
+            <!-- 飞书 -->
+            <div class="platform-card" id="pc-feishu">
+              <div class="platform-header" onclick="togglePlatform('feishu')">
+                <div class="toggle-info">
+                  <div class="toggle-label">🐦 飞书 <span class="tag gray" style="font-size:10px;margin-left:6px">Feishu / Lark</span></div>
+                  <div class="toggle-desc">机器人消息接入，支持群聊和单聊</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="platform-chevron" id="chv-feishu">▶</span>
+                  <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" onchange="onPlatformToggle('feishu',this)"><span class="toggle-slider"></span></label>
+                </div>
+              </div>
+              <div class="platform-fields" id="pf-feishu">
+                <div class="form-group">
+                  <label class="form-label">App ID <span class="form-required">*</span></label>
+                  <input class="form-input" type="text" placeholder="cli_xxxxxxxxxxxxxx" id="feishu_app_id">
+                  <div class="form-hint">飞书开放平台 → 应用凭证 → App ID</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">App Secret <span class="form-required">*</span></label>
+                  <input class="form-input" type="password" placeholder="输入 App Secret" id="feishu_app_secret">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Verification Token <span class="form-required">*</span></label>
+                  <input class="form-input" type="text" placeholder="输入 Verification Token" id="feishu_verification_token">
+                  <div class="form-hint">飞书开放平台 → 事件订阅 → Verification Token</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Encrypt Key <span class="tag gray" style="font-size:10px;margin-left:4px">可选</span></label>
+                  <input class="form-input" type="password" placeholder="不使用加密则留空" id="feishu_encrypt_key">
+                  <div class="form-hint">飞书开放平台 → 事件订阅 → Encrypt Key（启用加密时填写）</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Webhook 回调地址（只读）</label>
+                  <div style="display:flex;gap:8px">
+                    <input class="form-input" type="text" value="http://你的IP:8680/feishu/webhook" readonly style="color:var(--text-muted)">
+                    <button class="btn btn-ghost" style="white-space:nowrap" onclick="copyWebhook('feishu')">复制</button>
+                  </div>
+                  <div class="form-hint">将此地址填入飞书开放平台 → 事件订阅 → 请求地址</div>
+                </div>
+                <div class="flex gap-8" style="justify-content:flex-end">
+                  <button class="btn btn-primary" style="font-size:12px">保存</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 企业微信 -->
+            <div class="platform-card" id="pc-wecom">
+              <div class="platform-header" onclick="togglePlatform('wecom')">
+                <div class="toggle-info">
+                  <div class="toggle-label">💼 企业微信 <span class="tag gray" style="font-size:10px;margin-left:6px">WeCom</span></div>
+                  <div class="toggle-desc">群机器人 / 应用消息</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="platform-chevron" id="chv-wecom">▶</span>
+                  <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox"><span class="toggle-slider"></span></label>
+                </div>
+              </div>
+              <div class="platform-fields" id="pf-wecom">
+                <div class="form-group">
+                  <label class="form-label">Corp ID <span class="form-required">*</span></label>
+                  <input class="form-input" type="text" placeholder="ww_xxxxxxxxxxxxxxxx">
+                  <div class="form-hint">企业微信管理后台 → 我的企业 → 企业 ID</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Agent ID <span class="form-required">*</span></label>
+                  <input class="form-input" type="text" placeholder="1000002">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Secret <span class="form-required">*</span></label>
+                  <input class="form-input" type="password" placeholder="输入应用 Secret">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Token <span class="form-required">*</span></label>
+                  <input class="form-input" type="text" placeholder="自定义 Token（用于验证消息来源）">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">EncodingAESKey <span class="form-required">*</span></label>
+                  <input class="form-input" type="text" placeholder="43位随机字符串">
+                </div>
+                <div class="flex gap-8" style="justify-content:flex-end">
+                  <button class="btn btn-primary" style="font-size:12px">保存</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Telegram -->
+            <div class="platform-card" id="pc-telegram">
+              <div class="platform-header" onclick="togglePlatform('telegram')">
+                <div class="toggle-info">
+                  <div class="toggle-label">✈️ Telegram <span class="tag green" style="font-size:10px;margin-left:6px">已启用</span></div>
+                  <div class="toggle-desc">Telegram Bot API</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="platform-chevron" id="chv-telegram">▶</span>
+                  <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                </div>
+              </div>
+              <div class="platform-fields" id="pf-telegram">
+                <div class="form-group">
+                  <label class="form-label">Bot Token <span class="form-required">*</span></label>
+                  <input class="form-input" type="password" placeholder="123456789:AAHxxxxxxxxxxxxxxxx">
+                  <div class="form-hint">通过 @BotFather 创建 Bot 后获取</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Allowed Chat IDs <span class="tag gray" style="font-size:10px;margin-left:4px">可选</span></label>
+                  <input class="form-input" type="text" placeholder="多个 ID 用逗号分隔，留空则允许所有人">
+                  <div class="form-hint">限制只有指定用户/群组可以使用 Bot</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">接入方式</label>
+                  <select class="form-select">
+                    <option selected>Polling（轮询，无需公网 IP）</option>
+                    <option>Webhook（需要公网 HTTPS）</option>
+                  </select>
+                </div>
+                <div class="flex gap-8" style="justify-content:flex-end">
+                  <button class="btn btn-primary" style="font-size:12px">保存</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Discord -->
+            <div class="platform-card" id="pc-discord">
+              <div class="platform-header" onclick="togglePlatform('discord')">
+                <div class="toggle-info">
+                  <div class="toggle-label">🎮 Discord</div>
+                  <div class="toggle-desc">Discord Bot</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="platform-chevron" id="chv-discord">▶</span>
+                  <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox"><span class="toggle-slider"></span></label>
+                </div>
+              </div>
+              <div class="platform-fields" id="pf-discord">
+                <div class="form-group">
+                  <label class="form-label">Bot Token <span class="form-required">*</span></label>
+                  <input class="form-input" type="password" placeholder="输入 Discord Bot Token">
+                  <div class="form-hint">Discord Developer Portal → Bot → Token</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Application ID <span class="form-required">*</span></label>
+                  <input class="form-input" type="text" placeholder="输入 Application ID">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Guild IDs <span class="tag gray" style="font-size:10px;margin-left:4px">可选</span></label>
+                  <input class="form-input" type="text" placeholder="限定服务器 ID，多个用逗号分隔">
+                </div>
+                <div class="flex gap-8" style="justify-content:flex-end">
+                  <button class="btn btn-primary" style="font-size:12px">保存</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- QQ -->
+            <div class="platform-card" id="pc-qq">
+              <div class="platform-header" onclick="togglePlatform('qq')">
+                <div class="toggle-info">
+                  <div class="toggle-label">🐧 QQ <span class="tag gray" style="font-size:10px;margin-left:6px">OneBot 协议</span></div>
+                  <div class="toggle-desc">通过 NapCatQQ / LLOneBot 等接入</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="platform-chevron" id="chv-qq">▶</span>
+                  <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox"><span class="toggle-slider"></span></label>
+                </div>
+              </div>
+              <div class="platform-fields" id="pf-qq">
+                <div class="form-group">
+                  <label class="form-label">OneBot WS 地址 <span class="form-required">*</span></label>
+                  <input class="form-input" type="text" value="ws://127.0.0.1:3001" placeholder="ws://127.0.0.1:3001">
+                  <div class="form-hint">NapCatQQ / LLOneBot 的正向 WebSocket 地址</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Access Token <span class="tag gray" style="font-size:10px;margin-left:4px">可选</span></label>
+                  <input class="form-input" type="password" placeholder="OneBot 访问令牌（未设置则留空）">
+                </div>
+                <div class="flex gap-8" style="justify-content:flex-end">
+                  <button class="btn btn-primary" style="font-size:12px">保存</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slack -->
+            <div class="platform-card" id="pc-slack">
+              <div class="platform-header" onclick="togglePlatform('slack')">
+                <div class="toggle-info">
+                  <div class="toggle-label">💬 Slack</div>
+                  <div class="toggle-desc">Slack Bot via Socket Mode / Webhook</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="platform-chevron" id="chv-slack">▶</span>
+                  <label class="toggle" onclick="event.stopPropagation()"><input type="checkbox"><span class="toggle-slider"></span></label>
+                </div>
+              </div>
+              <div class="platform-fields" id="pf-slack">
+                <div class="form-group">
+                  <label class="form-label">Bot Token <span class="form-required">*</span></label>
+                  <input class="form-input" type="password" placeholder="xoxb-xxxxxxxxxxxxxxxx">
+                  <div class="form-hint">Slack App → OAuth & Permissions → Bot User OAuth Token</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">App Token <span class="form-required">*</span></label>
+                  <input class="form-input" type="password" placeholder="xapp-xxxxxxxxxxxxxxxx">
+                  <div class="form-hint">Slack App → Basic Information → App-Level Tokens（需要 connections:write 权限）</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Signing Secret <span class="form-required">*</span></label>
+                  <input class="form-input" type="password" placeholder="输入 Signing Secret">
+                  <div class="form-hint">Slack App → Basic Information → Signing Secret</div>
+                </div>
+                <div class="flex gap-8" style="justify-content:flex-end">
+                  <button class="btn btn-primary" style="font-size:12px">保存</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Gateway -->
+            <div class="card" style="margin-top:4px">
+              <div class="card-title">⚙️ Gateway 服务</div>
+              <div class="form-group">
+                <label class="form-label">监听端口</label>
+                <input class="form-input" type="number" value="8680" placeholder="Gateway 端口">
+              </div>
+              <div class="flex gap-8" style="justify-content:flex-end">
+                <button class="btn btn-ghost">重置</button>
+                <button class="btn btn-primary">保存配置</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- === 终端环境 === -->
+          <div class="config-section" data-section="terminal">
+            <div class="card">
+              <div class="card-title">🖥️ 终端环境</div>
+              <div class="form-group">
+                <label class="form-label">默认 Shell</label>
+                <select class="form-select">
+                  <option selected>PowerShell 7</option>
+                  <option>PowerShell 5.1 (Windows)</option>
+                  <option>CMD</option>
+                  <option>Git Bash</option>
+                  <option>WSL (bash)</option>
+                </select>
+                <div class="form-hint">Agent 执行命令时使用的 shell 环境</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">工作目录</label>
+                <input class="form-input" type="text" value="C:\Users\xpc" placeholder="Agent 工作目录">
+              </div>
+              <div class="form-group">
+                <label class="form-label">命令超时（秒）</label>
+                <input class="form-input" type="number" value="120" placeholder="命令执行超时时间">
+                <div class="form-hint">单条命令最大执行时间，超时自动终止</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">代码执行</div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">自动确认安全命令</div>
+                  <div class="toggle-desc">对读取类命令（ls、cat、Get-Process 等）跳过确认</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">允许写入文件</div>
+                  <div class="toggle-desc">Agent 可以创建和修改本地文件</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">允许网络请求</div>
+                  <div class="toggle-desc">Agent 可以执行 curl/wget 等网络命令</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">允许安装软件包</div>
+                  <div class="toggle-desc">Agent 可以执行 pip install / npm install 等</div>
+                </div>
+                <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="flex gap-8" style="justify-content:flex-end;margin-top:12px">
+                <button class="btn btn-ghost">重置</button>
+                <button class="btn btn-primary">保存配置</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- === 记忆设置 === -->
+          <div class="config-section" data-section="memory">
+            <div class="card">
+              <div class="card-title">🧠 记忆设置</div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">启用长期记忆</div>
+                  <div class="toggle-desc">跨会话记住用户偏好和重要信息</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">自动记忆整理</div>
+                  <div class="toggle-desc">定时压缩和归纳记忆，避免冗余</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="form-group" style="margin-top:12px">
+                <label class="form-label">记忆容量上限</label>
+                <input class="form-input" type="number" value="200" placeholder="最大记忆条数">
+                <div class="form-hint">超过上限时自动清理最旧/最低权重的记忆</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">记忆存储路径</label>
+                <input class="form-input" type="text" value="~/.hermes/memory/" placeholder="记忆文件存储目录">
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">上下文管理</div>
+              <div class="form-group">
+                <label class="form-label">上下文压缩阈值</label>
+                <input class="form-input" type="number" value="60" placeholder="百分比">
+                <div class="form-hint">上下文使用率超过此值时自动压缩历史消息（%）</div>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">自动注入相关记忆</div>
+                  <div class="toggle-desc">在每轮对话前自动检索并注入相关的历史记忆</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="flex gap-8" style="justify-content:flex-end;margin-top:12px">
+                <button class="btn btn-ghost">重置</button>
+                <button class="btn btn-primary">保存配置</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- === 显示偏好 === -->
+          <div class="config-section" data-section="display">
+            <div class="card">
+              <div class="card-title">🎨 显示偏好</div>
+              <div class="form-group">
+                <label class="form-label">主题</label>
+                <select class="form-select">
+                  <option selected>深色模式</option>
+                  <option>浅色模式</option>
+                  <option>跟随系统</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">界面语言</label>
+                <select class="form-select">
+                  <option selected>简体中文</option>
+                  <option>English</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">字体大小</label>
+                <select class="form-select">
+                  <option>小 (12px)</option>
+                  <option selected>中 (14px)</option>
+                  <option>大 (16px)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">代码字体</label>
+                <select class="form-select">
+                  <option selected>Cascadia Code</option>
+                  <option>JetBrains Mono</option>
+                  <option>Fira Code</option>
+                  <option>Consolas</option>
+                </select>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">对话界面</div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">显示 Token 用量</div>
+                  <div class="toggle-desc">在每条消息下方显示 token 消耗</div>
+                </div>
+                <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">显示工具调用详情</div>
+                  <div class="toggle-desc">展开显示 Agent 使用的工具及其参数</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">Markdown 渲染</div>
+                  <div class="toggle-desc">将回复内容渲染为 Markdown 格式</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">代码高亮</div>
+                  <div class="toggle-desc">对代码块启用语法高亮</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="flex gap-8" style="justify-content:flex-end;margin-top:12px">
+                <button class="btn btn-ghost">重置</button>
+                <button class="btn btn-primary">保存配置</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- === 安全设置 === -->
+          <div class="config-section" data-section="security">
+            <div class="card">
+              <div class="card-title">🔒 安全设置</div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">命令执行确认</div>
+                  <div class="toggle-desc">执行任何终端命令前需要用户确认</div>
+                </div>
+                <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">危险命令拦截</div>
+                  <div class="toggle-desc">自动拦截 rm -rf、格式化等高危命令</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">文件系统沙箱</div>
+                  <div class="toggle-desc">限制 Agent 只能访问工作目录内的文件</div>
+                </div>
+                <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-label">网络请求审计</div>
+                  <div class="toggle-desc">记录所有 Agent 发出的网络请求</div>
+                </div>
+                <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">访问控制</div>
+              <div class="form-group">
+                <label class="form-label">Dashboard 密码</label>
+                <input class="form-input" type="password" value="" placeholder="留空则不需要密码">
+                <div class="form-hint">设置后访问 Dashboard 需要输入密码</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">允许的 IP 地址</label>
+                <input class="form-input" type="text" value="127.0.0.1" placeholder="用逗号分隔多个 IP">
+                <div class="form-hint">仅允许指定 IP 访问 Dashboard，默认仅限本机</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">API 端口</label>
+                <input class="form-input" type="number" value="8642" placeholder="Agent API 监听端口">
+              </div>
+              <div class="flex gap-8" style="justify-content:flex-end;margin-top:12px">
+                <button class="btn btn-ghost">重置</button>
+                <button class="btn btn-primary">保存配置</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== LOGS PAGE ====== -->
+    <div id="page-logs" class="page">
+      <div class="page-header">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="page-title">系统日志</div>
+            <div class="page-desc">实时查看 Hermes 运行日志</div>
+          </div>
+          <div class="flex gap-8">
+            <select class="form-select" style="width:auto;font-size:12px">
+              <option>全部级别</option>
+              <option>INFO</option>
+              <option>WARNING</option>
+              <option>ERROR</option>
+            </select>
+            <button class="btn btn-ghost">🔄 刷新</button>
+            <button class="btn btn-ghost">📥 导出</button>
+          </div>
+        </div>
+      </div>
+      <div class="page-content">
+        <div class="card" style="padding:12px 16px">
+          <div id="logs-container"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script src="js/app.js"></script>
+</body>
+</html>
