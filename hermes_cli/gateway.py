@@ -1592,9 +1592,48 @@ def launchd_status(deep: bool = False):
 # Gateway Runner
 # =============================================================================
 
+def _ensure_api_server_enabled():
+    """Auto-enable api_server platform in config.yaml if not already set.
+
+    This makes `hermes web` work out-of-the-box after installation without
+    requiring users to manually edit config.yaml. Called at gateway startup.
+    """
+    try:
+        from hermes_constants import get_hermes_home
+        import yaml as _yaml
+        home = get_hermes_home()
+        config_path = home.parent / "config.yaml"
+        if not config_path.exists():
+            config_path = home / "config.yaml"
+        if not config_path.exists():
+            # No config yet — create minimal one with api_server enabled
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text(
+                "platforms:\n  api_server:\n    enabled: true\n",
+                encoding="utf-8",
+            )
+            print("✓ 已创建 config.yaml 并启用 api_server 平台（Web UI 将可用）")
+            print()
+            return
+        cfg = _yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        platforms = cfg.setdefault("platforms", {})
+        api_srv = platforms.setdefault("api_server", {})
+        if not api_srv.get("enabled"):
+            api_srv["enabled"] = True
+            config_path.write_text(
+                _yaml.dump(cfg, allow_unicode=True, default_flow_style=False),
+                encoding="utf-8",
+            )
+            print("✓ 已自动启用 api_server 平台（Web UI 将可用）")
+            print()
+    except Exception as _exc:
+        # Never block gateway startup on config tweaking
+        pass
+
+
 def run_gateway(verbose: int = 0, quiet: bool = False, replace: bool = False):
     """Run the gateway in foreground.
-    
+
     Args:
         verbose: Stderr log verbosity count added on top of default WARNING (0=WARNING, 1=INFO, 2+=DEBUG).
         quiet: Suppress all stderr log output.
@@ -1603,9 +1642,12 @@ def run_gateway(verbose: int = 0, quiet: bool = False, replace: bool = False):
                  hasn't fully exited yet.
     """
     sys.path.insert(0, str(PROJECT_ROOT))
-    
+
+    # Auto-enable api_server so `hermes web` just works — zero-config UX
+    _ensure_api_server_enabled()
+
     from gateway.run import start_gateway
-    
+
     print("┌─────────────────────────────────────────────────────────┐")
     print("│           ⚕ Hermes Gateway Starting...                 │")
     print("├─────────────────────────────────────────────────────────┤")

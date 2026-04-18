@@ -327,9 +327,7 @@ def acquire_scoped_lock(scope: str, identity: str, metadata: Optional[dict[str, 
 
         stale = existing_pid is None
         if not stale:
-            try:
-                os.kill(existing_pid, 0)
-            except (ProcessLookupError, PermissionError):
+            if not _pid_alive(existing_pid):
                 stale = True
             else:
                 current_start = _get_process_start_time(existing_pid)
@@ -413,6 +411,39 @@ def release_all_scoped_locks() -> int:
     return removed
 
 
+def _pid_alive(pid: int) -> bool:
+    """Cross-platform check whether ``pid`` belongs to a living process.
+
+    On Windows, ``os.kill(pid, 0)`` is unsafe — it can raise ``SystemError``
+    or ``OSError[WinError 87]`` because signal 0 isn't supported. We avoid it
+    entirely and use psutil / tasklist instead.
+    """
+    import sys as _sys
+    if _sys.platform == "win32":
+        try:
+            import psutil
+            return psutil.pid_exists(pid)
+        except ImportError:
+            import subprocess as _sp
+            try:
+                result = _sp.run(
+                    ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                return str(pid) in result.stdout
+            except Exception:
+                # If we can't verify, assume alive to avoid nuking a real PID file
+                return True
+    # POSIX: signal 0 is a safe existence check
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+    except OSError:
+        return False
+
+
 def get_running_pid() -> Optional[int]:
     """Return the PID of a running gateway instance, or ``None``.
 
@@ -430,32 +461,9 @@ def get_running_pid() -> Optional[int]:
         remove_pid_file()
         return None
 
-    try:
-        os.kill(pid, 0)  # signal 0 = existence check, no actual signal sent
-    except (ProcessLookupError, PermissionError):
+    if not _pid_alive(pid):
         remove_pid_file()
         return None
-    except OSError:
-        # Windows may raise OSError (e.g. WinError 11) for stale/invalid PIDs
-        import sys as _sys
-        if _sys.platform == "win32":
-            try:
-                import psutil
-                if not psutil.pid_exists(pid):
-                    remove_pid_file()
-                    return None
-            except ImportError:
-                import subprocess as _sp
-                result = _sp.run(
-                    ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-                    capture_output=True, text=True
-                )
-                if str(pid) not in result.stdout:
-                    remove_pid_file()
-                    return None
-        else:
-            remove_pid_file()
-            return None
 
     recorded_start = record.get("start_time")
     current_start = _get_process_start_time(pid)

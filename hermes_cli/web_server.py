@@ -2070,11 +2070,16 @@ async def chat_completions_proxy(request: Request):
         except (ConnectionRefusedError, socket.timeout, OSError) as exc:
             err_msg = (
                 f"无法连接到 Gateway API（{_GATEWAY_API}）。\n\n"
-                "请确认已在 config.yaml 中启用 api_server 平台：\n\n"
-                "platforms:\n"
-                "  api_server:\n"
-                "    enabled: true\n\n"
-                "然后重启 Gateway：hermes gateway run\n\n"
+                "Web UI 需要启用 api_server 平台。请在新的 PowerShell 窗口运行以下命令：\n\n"
+                "  # Linux / macOS:\n"
+                "  API_SERVER_ENABLED=true hermes gateway run\n\n"
+                "  # Windows PowerShell:\n"
+                "  $env:API_SERVER_ENABLED=\"true\"; hermes gateway run\n\n"
+                "或者永久启用（推荐）：在 config.yaml 里添加\n\n"
+                "  platforms:\n"
+                "    api_server:\n"
+                "      enabled: true\n\n"
+                "然后运行：hermes gateway stop; hermes gateway run\n\n"
                 f"（详细错误：{exc}）"
             )
             yield f'data: {json.dumps({"error": {"message": err_msg}})}\n\n'

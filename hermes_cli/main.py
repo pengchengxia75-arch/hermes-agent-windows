@@ -1028,11 +1028,61 @@ def cmd_web(args):
                     _yaml.dump(cfg, allow_unicode=True, default_flow_style=False),
                     encoding="utf-8",
                 )
-                print("已自动在 config.yaml 启用 api_server 平台。")
-                print("如果 Gateway 已在运行，请重启：hermes gateway run")
+                print("=" * 60)
+                print("✓ 已自动在 config.yaml 启用 api_server 平台。")
+                print()
+                print("⚠️  如果 Gateway 已在运行，必须重启才能生效：")
+                print()
+                print("    hermes gateway stop")
+                print("    hermes gateway run")
+                print()
+                print("如果 Gateway 还没启动，请先启动它再使用 Web UI。")
+                print("=" * 60)
                 print()
     except Exception:
         pass  # 配置写入失败不影响 Web UI 启动
+
+    # Pre-flight: if Gateway isn't running, start it automatically in background
+    # so the Web UI works out-of-the-box without a second terminal window.
+    try:
+        import socket as _socket
+        _sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        _sock.settimeout(1.0)
+        _gw_result = _sock.connect_ex(("127.0.0.1", 8642))
+        _sock.close()
+        if _gw_result != 0:
+            print("⚙  Gateway 未运行，正在后台自动启动...")
+            import subprocess as _subprocess, sys as _sys, os as _os, time as _time
+            _hermes_exe = _sys.executable
+            _cmd = [_hermes_exe, "-m", "hermes_cli.main", "gateway", "run"]
+            # On Windows, detach so closing Web UI doesn't kill Gateway
+            _kwargs = {"stdout": _subprocess.DEVNULL, "stderr": _subprocess.DEVNULL}
+            if _os.name == "nt":
+                _kwargs["creationflags"] = _subprocess.CREATE_NEW_CONSOLE
+            else:
+                _kwargs["start_new_session"] = True
+            try:
+                _subprocess.Popen(_cmd, **_kwargs)
+                # Wait up to 10s for Gateway API to come up
+                for _i in range(20):
+                    _time.sleep(0.5)
+                    _s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+                    _s.settimeout(0.5)
+                    if _s.connect_ex(("127.0.0.1", 8642)) == 0:
+                        _s.close()
+                        print("✓ Gateway 已启动（端口 8642 就绪）")
+                        print()
+                        break
+                    _s.close()
+                else:
+                    print("⚠️  Gateway 启动超时，请手动运行：hermes gateway run")
+                    print()
+            except Exception as _e:
+                print(f"⚠️  自动启动 Gateway 失败：{_e}")
+                print("    请手动运行：hermes gateway run")
+                print()
+    except Exception:
+        pass  # 预检查失败不影响 Web UI 启动
 
     url = f"http://{host}:{port}"
     print(f"Hermes Web UI: {url}")
